@@ -21,8 +21,9 @@ return [
         ['urls' => 'stun:stun.l.google.com:19302'],
     ],
     'turn' => [
-        'urls' => '',
-        'secret' => '',
+        'urls' => 'turn:209.25.141.16:45209?transport=tcp',
+        // Set this privately in config.php or the LCHAT_TURN_SECRET environment variable.
+        'secret' => getenv('LCHAT_TURN_SECRET') ?: '',
         'ttl' => 3600,
     ],
     'call_transport' => 'all',

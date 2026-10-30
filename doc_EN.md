@@ -27,3 +27,5 @@ Use compatible versions of LChatWeb and LChatHost. If the backend is down the we
 Calls across networks may require a separate TURN server with a reachable listener and UDP relay range. Configure `turn` on **LChatHost**. See [calls and TURN](https://github.com/leosmleol-svg/LChat/blob/main/CALLS.md) and [tunnel tools](https://github.com/leosmleol-svg/LChat/blob/main/PORT_TOOLS.md).
 
 Before updating, back up the LChatHost database, `config.php`, `data/` and `files/`, and the LChatWeb config. GitHub Pages cannot run PHP; GitHub stores the source only. This split deployment has not been tested on a real hosting provider.
+
+The example configuration points to the project owner’s TURN server at `turn:209.25.141.16:45209?transport=tcp`. Set its secret privately in `turn.secret` or the `LCHAT_TURN_SECRET` environment variable; the repository does not contain the secret. Without it, this TURN server is not included in calls. Verify the server and its relay ports; a reachable TCP listener alone does not prove calls work.
