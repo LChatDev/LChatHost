@@ -1,6 +1,6 @@
 # LChatHost: backend
 
-LChat now consists of two projects: [LChatWeb](https://github.com/leosmleol-svg/LChatWeb) serves the pages, styles and JavaScript; **LChatHost** processes requests, sessions, messages, files and call signaling. Both projects are needed. WebRTC media travels between participants or through a separately configured TURN server.
+LChat now consists of two projects: [LChatWeb](https://github.com/LChatDev/LChatWeb) serves the pages, styles and JavaScript; **LChatHost** processes requests, sessions, messages, files and call signaling. Both projects are needed. WebRTC media travels between participants or through a separately configured TURN server.
 
 ## 1. Deploy the backend
 
@@ -10,7 +10,7 @@ Copy `config.example.php` to `config.php`; configure your database and user, a u
 
 ## 2. Deploy the website
 
-Upload [LChatWeb](https://github.com/leosmleol-svg/LChatWeb) to a separate website directory on a host with PHP `curl` and Apache `mod_rewrite`. Copy its `config.example.php` to `config.php` and set the trusted HTTPS LChatHost address:
+Upload [LChatWeb](https://github.com/LChatDev/LChatWeb) to a separate website directory on a host with PHP `curl` and Apache `mod_rewrite`. Copy its `config.example.php` to `config.php` and set the trusted HTTPS LChatHost address:
 
 ```php
 'backend' => ['mode' => 'pc', 'url' => 'https://backend.example.com/', 'proxy_secret' => 'YOUR_SHARED_RANDOM_SECRET'],
@@ -24,7 +24,7 @@ Open the public LChatWeb `https://your-site/install.php` and enter the **LChatHo
 
 Use compatible versions of LChatWeb and LChatHost. If the backend is down the web page may load, but login and messages fail. For a 502, check the HTTPS URL, certificate, connectivity, PHP `curl`, tunnel and both PHP logs. The backend's public URL is also reachable directly: enforce the application's access controls, update the server and protect config and tunnel tokens.
 
-Calls across networks may require a separate TURN server with a reachable listener and UDP relay range. Configure `turn` on **LChatHost**. See [calls and TURN](https://github.com/leosmleol-svg/LChat/blob/main/CALLS.md) and [tunnel tools](https://github.com/leosmleol-svg/LChat/blob/main/PORT_TOOLS.md).
+Calls across networks may require a separate TURN server with a reachable listener and UDP relay range. Configure `turn` on **LChatHost**. See [calls and TURN](https://github.com/LChatDev/LChat/blob/main/CALLS.md) and [tunnel tools](https://github.com/LChatDev/LChat/blob/main/PORT_TOOLS.md).
 
 Before updating, back up the LChatHost database, `config.php`, `data/` and `files/`, and the LChatWeb config. GitHub Pages cannot run PHP; GitHub stores the source only. This split deployment has not been tested on a real hosting provider.
 

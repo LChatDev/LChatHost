@@ -1,6 +1,6 @@
 # LChatHost: серверная часть
 
-LChat состоит из двух отдельных проектов: [LChatWeb](https://github.com/leosmleol-svg/LChatWeb) отдаёт страницы, стили и JavaScript, а **LChatHost** обрабатывает запросы, сессии, сообщения, файлы и сигнализацию звонков. Оба проекта нужны для сайта. Передача звука и видео WebRTC происходит между участниками или через отдельно настроенный TURN.
+LChat состоит из двух отдельных проектов: [LChatWeb](https://github.com/LChatDev/LChatWeb) отдаёт страницы, стили и JavaScript, а **LChatHost** обрабатывает запросы, сессии, сообщения, файлы и сигнализацию звонков. Оба проекта нужны для сайта. Передача звука и видео WebRTC происходит между участниками или через отдельно настроенный TURN.
 
 ## 1. Разместите серверную часть
 
@@ -10,7 +10,7 @@ LChat состоит из двух отдельных проектов: [LChatWe
 
 ## 2. Разместите веб-сайт
 
-Загрузите файлы [LChatWeb](https://github.com/leosmleol-svg/LChatWeb) на веб-хостинг в отдельную папку с PHP `curl` и включённым Apache `mod_rewrite`. Скопируйте его `config.example.php` в `config.php` и укажите доверенный HTTPS-адрес LChatHost, например:
+Загрузите файлы [LChatWeb](https://github.com/LChatDev/LChatWeb) на веб-хостинг в отдельную папку с PHP `curl` и включённым Apache `mod_rewrite`. Скопируйте его `config.example.php` в `config.php` и укажите доверенный HTTPS-адрес LChatHost, например:
 
 ```php
 'backend' => ['mode' => 'pc', 'url' => 'https://backend.example.com/', 'proxy_secret' => 'ВАШ_ОБЩИЙ_СЛУЧАЙНЫЙ_СЕКРЕТ'],
@@ -24,7 +24,7 @@ LChat состоит из двух отдельных проектов: [LChatWe
 
 LChatWeb и LChatHost должны быть совместимых версий. Если backend недоступен, веб-страница может открываться, но вход и сообщения не заработают. При ошибке 502 проверьте HTTPS-адрес, сертификат, интернет, PHP `curl`, туннель и журналы PHP обоих серверов. Доступ к публичному адресу backend также открыт извне: используйте правила авторизации приложения, регулярно обновляйте сервер и берегите конфиги и токены.
 
-Для звонков в разных сетях может потребоваться отдельный TURN с доступным портом подключения и UDP-диапазоном relay; настройте `turn` в конфиге **LChatHost**. [Звонки и TURN](https://github.com/leosmleol-svg/LChatRU/blob/main/CALLS.md) · [Туннели](https://github.com/leosmleol-svg/LChatRU/blob/main/PORT_TOOLS.md).
+Для звонков в разных сетях может потребоваться отдельный TURN с доступным портом подключения и UDP-диапазоном relay; настройте `turn` в конфиге **LChatHost**. [Звонки и TURN](https://github.com/LChatDev/LChatRU/blob/main/CALLS.md) · [Туннели](https://github.com/LChatDev/LChatRU/blob/main/PORT_TOOLS.md).
 
 Перед обновлением создайте копии базы, `config.php`, `data/` и `files/` на LChatHost и конфига LChatWeb. GitHub Pages не запускает PHP; сам GitHub хранит только исходники. Версии двух компонентов на реальном хостинге не проверены в этой среде.
 
