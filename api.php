@@ -11,7 +11,7 @@ try {
     ensure_features();
     $action = $_GET['action'] ?? 'me';
     if ($ctx['uid'] && $action !== 'logout') require_user($ctx);
-    $read = ['me', 'chats', 'sync', 'messages', 'users', 'room.info', 'invite.info', 'contacts', 'mobile.events', 'channel.info', 'bot.callback.status'];
+    $read = ['me', 'chats', 'sync', 'messages', 'users', 'room.info', 'invite.info', 'contacts', 'mobile.events', 'channel.info', 'bot.callback.status', 'chat.info'];
     $data = $_GET;
     if (!in_array($action, $read, true)) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'Используйте POST.');
@@ -154,7 +154,9 @@ try {
             unset($s);
             // Acknowledge only previously processed signals, never delete unread ones.
             query('DELETE FROM signals WHERE recipient = ? AND id <= ?', [$id, $after]);
-            result(['peers' => $peers, 'signals' => $signals, 'incoming_calls' => $ctx['uid'] ? account_incoming_calls($ctx['uid']) : []]);
+            $reply = ['peers' => $peers, 'signals' => $signals, 'incoming_calls' => $ctx['uid'] ? account_incoming_calls($ctx['uid']) : []];
+            if (!empty($data['refresh_ice'])) $reply['ice_servers'] = ice_servers($ctx);
+            result($reply);
         }
         if ($action === 'room.signals') {
             rate('signal-batch:' . $id, 120, 60);
@@ -296,6 +298,23 @@ try {
         query('INSERT INTO bot_callback_queries (id, bot_user_id, message_id, from_user_id, data, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$id, $target['bot_id'], $messageId, $uid, $callbackData, stamp()]);
         bot_platform_publish_callback((int)$target['bot_id'], $id);
         result(['id' => $id]);
+    }
+    if ($action === 'chat.info') {
+        $members = query('SELECT u.id, u.name, u.username, m.role FROM users u JOIN members m ON m.user_id = u.id WHERE m.chat_id = ? ORDER BY u.name', [$chatId])->fetchAll();
+        result(['members' => $members]);
+    }
+    if ($action === 'chat.update') {
+        if (!in_array($chat['kind'], ['group', 'channel'], true) || $chat['role'] !== 'owner') fail(403, 'Only the owner can edit a group or channel.');
+        $title = field($data, 'title', 2, 80);
+        query('UPDATE chats SET title = ? WHERE id = ?', [$title, $chatId]);
+        result(['ok' => true, 'title' => $title]);
+    }
+    if ($action === 'channel.remove') {
+        if ($chat['kind'] !== 'channel' || $chat['role'] !== 'owner') fail(403, 'Only the owner can edit a group or channel.');
+        $other = (int)($data['user_id'] ?? 0);
+        if ($other < 1 || $other === $uid) fail(422, 'Invalid member.');
+        query('DELETE FROM members WHERE chat_id = ? AND user_id = ?', [$chatId, $other]);
+        result(['ok' => true]);
     }
     if ($action === 'channel.update') {
         if($chat['kind']!=='channel'||$chat['role']!=='owner')fail(403,'Только владелец может менять адрес канала.');$slug=channel_slug($data);try{query('UPDATE channel_details SET slug=? WHERE chat_id=?',[$slug,$chatId]);}catch(PDOException $e){if(str_starts_with((string)$e->getCode(),'23'))fail(409,'Этот адрес уже занят.');throw $e;}result(['slug'=>$slug]);

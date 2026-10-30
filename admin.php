@@ -255,7 +255,9 @@ try {
             unset($s);
             // Acknowledge only previously processed signals, never delete unread ones.
             query('DELETE FROM signals WHERE recipient = ? AND id <= ?', [$id, $after]);
-            result(['peers' => $peers, 'signals' => $signals, 'incoming_calls' => account_incoming_calls($ctx['uid'])]);
+            $reply = ['peers' => $peers, 'signals' => $signals, 'incoming_calls' => account_incoming_calls($ctx['uid'])];
+            if (!empty($data['refresh_ice'])) $reply['ice_servers'] = ice_servers($ctx);
+            result($reply);
         }
         if ($action === 'room.signals') {
             rate('signal-batch:' . $id, 120, 60);
