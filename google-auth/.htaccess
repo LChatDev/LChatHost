@@ -1,5 +1,0 @@
-Options -Indexes
-DirectoryIndex index.php
-<FilesMatch "^(config\.php|\.user\.ini)$">
-  Require all denied
-</FilesMatch>

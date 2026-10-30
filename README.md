@@ -1,7 +1,9 @@
 # LChatHost
 
-> LChat был полностью создан с помощью ИИ и использует указанные сторонние компоненты. / LChat was created entirely with AI assistance and uses the attributed third-party components.
+> LChat был полностью создан с помощью ИИ и использует сторонние компоненты. / LChat was created entirely with AI assistance and uses third-party components.
 
-Русскоязычный PHP-сайт с выбором обработки запросов: на хостинге или на своём ПК. Инструкции по размещению: [русский](doc_RU.md) · [English](doc_EN.md). Репозиторий не содержит личного конфига, ключей или загруженных файлов. Исходники Telegram Web A указаны в [TELEGRAM_SOURCE.md](TELEGRAM_SOURCE.md); лицензия — [GPL-3.0](LICENSE).
+Серверная часть LChat: обработка запросов, сессий, сообщений, файлов и сигнализации звонков. Страницы и ресурсы находятся в отдельном [LChatWeb](https://github.com/leosmleol-svg/LChatWeb).
 
-A Russian-language PHP site with a choice of local hosting or a backend on your PC. Hosting guides: [русский](doc_RU.md) · [English](doc_EN.md). Private configuration, keys and uploaded files are excluded.
+Backend for requests, sessions, messages, files and call signaling. Pages and assets live in [LChatWeb](https://github.com/leosmleol-svg/LChatWeb).
+
+Инструкции / Guides: [русский](doc_RU.md) · [English](doc_EN.md). Лицензия / License: [GPL-3.0](LICENSE).

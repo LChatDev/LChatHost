@@ -62,6 +62,15 @@ function request_is_https(): bool {
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') return true;
     return getenv('LCHAT_TRUST_LOCAL_PROXY') === '1' && in_array($_SERVER['REMOTE_ADDR'] ?? '', ['127.0.0.1', '::1'], true) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
 }
+function authenticate_web_gateway(): void {
+    if (empty($_SERVER['HTTP_X_LCHAT_GATEWAY'])) return;
+    $secret = (string)(config()['proxy_secret'] ?? '');
+    $supplied = (string)($_SERVER['HTTP_X_LCHAT_PROXY_KEY'] ?? '');
+    $ip = (string)($_SERVER['HTTP_X_LCHAT_CLIENT_IP'] ?? '');
+    if (strlen($secret) < 32 || str_starts_with($secret, 'REPLACE_') || !hash_equals($secret, $supplied) || !filter_var($ip, FILTER_VALIDATE_IP)) fail(403, 'Доступ к шлюзу запрещён.');
+    $_SERVER['REMOTE_ADDR'] = $ip;
+}
+authenticate_web_gateway();
 function session_open(): void {
     if (session_status() === PHP_SESSION_ACTIVE) return;
     session_name(config()['session_name'] ?? 'lchat_session');
@@ -118,7 +127,7 @@ function rate(string $key, int $max, int $seconds): void {
 }
 function ice_servers(array $ctx): array {
     $c = config(); $servers = $c['ice_servers'] ?? [];
-    $turn = $c['turn'] ?? [];
+    $turn = site_settings()['turn'];
     if (!empty($turn['secret']) && !empty($turn['urls'])) {
         $username = (time() + (int)($turn['ttl'] ?? 3600)) . ':' . substr(hash('sha256', $ctx['actor']), 0, 12);
         $servers[] = ['urls' => $turn['urls'], 'username' => $username, 'credential' => base64_encode(hash_hmac('sha1', $username, $turn['secret'], true))];
@@ -126,7 +135,7 @@ function ice_servers(array $ctx): array {
     return $servers;
 }
 function call_transport(): string {
-    return (config()['call_transport'] ?? 'all') === 'relay' ? 'relay' : 'all';
+    return site_settings()['call_transport'];
 }
 function room(string $token, array $ctx): array {
     if (!preg_match('/^[a-f0-9]{48}$/D', $token)) fail(404, 'Звонок не найден.');
@@ -146,11 +155,11 @@ function transaction(callable $action): mixed {
     try { $value = $action(); db()->commit(); return $value; }
     catch (Throwable $e) { if (db()->inTransaction()) db()->rollBack(); throw $e; }
 }
-require_once __DIR__ . '/apis/backend_gateway.php';
-backend_gateway();
 require_once __DIR__ . '/apis/features.php';
 require_once __DIR__ . '/apis/bot_accounts.php';
 require_once __DIR__ . '/apis/bot_creator.php';
 require_once __DIR__ . '/apis/bot_platform.php';
 require_once __DIR__ . '/apis/bot_files.php';
 require_once __DIR__ . '/apis/presence.php';
+
+require_once __DIR__ . '/apis/site_settings.php';

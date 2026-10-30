@@ -56,13 +56,13 @@ try {
     if ($action === 'me') {
         $user = $ctx['uid'] ? one('SELECT id, username, name FROM users WHERE id = ?', [$ctx['uid']]) : null;
         if ($user) $user['is_admin'] = service_is_admin($user);
-        result(['user' => $user, 'csrf' => $ctx['csrf'], 'registration_open' => config()['registration_open'] ?? true, 'public_url' => config()['public_url'] ?? '', 'call_state' => account_call_state($ctx['uid'])]);
+        result(['user' => $user, 'csrf' => $ctx['csrf'], 'site_name' => site_settings()['site_name'], 'registration_open' => site_settings()['registration_open'], 'public_url' => config()['public_url'] ?? '', 'call_state' => account_call_state($ctx['uid'])]);
     }
     if ($action === 'register' || $action === 'login') {
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         rate('auth-ip:' . $ip, 30, 900);
         if ($action === 'register') {
-            if (!(config()['registration_open'] ?? true)) fail(403, 'Регистрация закрыта.');
+            if (!(site_settings()['registration_open'])) fail(403, 'Регистрация закрыта.');
             rate('register:' . $ip, 8, 3600);
             $name = field($data, 'name', 2, 60);
             $username = strtolower(field($data, 'username', 3, 32));
@@ -120,7 +120,7 @@ try {
             result(['token' => $token]);
         }
         $token = field($data, 'token', 48, 48); $r = room($token, $ctx);
-        if ($action === 'room.info') result(['room' => ['title' => $r['title'], 'video' => (bool)$r['video'], 'is_public' => (bool)$r['is_public'], 'owner' => (int)$r['owner_id'] === $ctx['uid']], 'limit' => config()['max_call_participants'] ?? 6]);
+        if ($action === 'room.info') result(['room' => ['title' => $r['title'], 'video' => (bool)$r['video'], 'is_public' => (bool)$r['is_public'], 'owner' => (int)$r['owner_id'] === $ctx['uid']], 'limit' => site_settings()['max_call_participants']]);
         if ($action === 'room.end') {
             if ((int)$r['owner_id'] !== $ctx['uid']) fail(403, 'Завершить звонок может только создатель.');
             query('UPDATE rooms SET ended_at = ? WHERE id = ?', [stamp(), $r['id']]); result(['ok' => true]);
@@ -137,7 +137,7 @@ try {
                 $fresh = one('SELECT ended_at FROM rooms WHERE id = ?', [$r['id']]);
                 if ($fresh['ended_at']) throw new DomainException('Звонок завершён.');
                 $n = one('SELECT COUNT(*) AS n FROM participants WHERE room_id = ? AND left_at IS NULL AND last_seen >= ?', [$r['id'], stamp(-35)]);
-                if ((int)$n['n'] >= (int)(config()['max_call_participants'] ?? 6)) throw new DomainException('Комната заполнена.');
+                if ((int)$n['n'] >= (int)(site_settings()['max_call_participants'])) throw new DomainException('Комната заполнена.');
                 query('INSERT INTO participants (id, room_id, owner_key, user_id, name, last_seen, joined_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [$id, $r['id'], hash('sha256', $ctx['actor']), $u['id'] ?? null, $name, stamp(), stamp()]);
                 group_call_started($r, (int)($u['id'] ?? 0));
             });

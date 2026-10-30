@@ -1,41 +1,29 @@
-# Hosting LChatHost
+# LChatHost: backend
 
-Choose where the website requests are processed:
+LChat now consists of two projects: [LChatWeb](https://github.com/leosmleol-svg/LChatWeb) serves the pages, styles and JavaScript; **LChatHost** processes requests, sessions, messages, files and call signaling. Both projects are needed. WebRTC media travels between participants or through a separately configured TURN server.
 
-- **Hosting server** (`host`): PHP, database, files and call signaling run on the website host.
-- **Your PC** (`pc`): the host serves the interface and forwards application requests to your PC's PHP server over HTTPS. The database, files and call signaling remain on the PC. Visitors use the website without installing a separate connection app.
+## 1. Deploy the backend
 
-The two modes do not synchronize databases. Back up the database, `config.php`, `data/` and `files/` before switching: accounts and messages come from the selected server. In `pc` mode requests fail while the PC is offline. GitHub stores source code; it does not run PHP or MySQL.
+Install LChatHost on your hosting server or a PC reachable over HTTPS. It requires PHP 8.2+, Apache with `.htaccess` and `mod_rewrite`, MySQL/MariaDB, and `pdo_mysql`, `mbstring`, `fileinfo`, `curl` and `gd`. Use a trusted HTTPS certificate: LChatWeb verifies it and rejects plain HTTP and self-signed certificates. Preserve `.htaccess`, prevent direct access to `config.php`, `apis/`, `data/` and `files/`, and give PHP write access to `data/` and `files/`. Confirm Apache applies these rules.
 
-## 1. Prepare the website
+Copy `config.example.php` to `config.php`; configure your database and user, a unique random `install_key` of at least 32 characters, and `public_url` as the public HTTPS address of **LChatWeb**. Generate a separate random `proxy_secret` (for example, with `php -r "echo bin2hex(random_bytes(32));"`); LChatWeb will need the same secret. Usually leave `session_domain` empty. Keep the config private. For a PC backend, do not expose the database port to the internet; an appropriate HTTPS tunnel can expose the PC web server.
 
-Prepare PHP 8.2+, Apache with `.htaccess` and `mod_rewrite`, the `pdo_mysql`, `mbstring`, `fileinfo`, `curl` and `gd` extensions, a domain and trusted HTTPS. Upload the web files to one directory, including hidden `.htaccess`, and copy `config.example.php` to `config.php`. Keep the config private. On the server that stores files, `data/` and `files/` must be writable by PHP and protected by Apache rules.
+## 2. Deploy the website
 
-## 2. Choose the hosting server
-
-In the site's private `config.php` set:
+Upload [LChatWeb](https://github.com/leosmleol-svg/LChatWeb) to a separate website directory on a host with PHP `curl` and Apache `mod_rewrite`. Copy its `config.example.php` to `config.php` and set the trusted HTTPS LChatHost address:
 
 ```php
-'backend' => ['mode' => 'host', 'url' => ''],
+'backend' => ['mode' => 'pc', 'url' => 'https://backend.example.com/', 'proxy_secret' => 'YOUR_SHARED_RANDOM_SECRET'],
 ```
 
-Create a MySQL/MariaDB database and user, configure `database` and set the public HTTPS site address in `public_url`. Set a unique random `install_key` of at least 32 characters. Open `https://your-domain/install.php`, enter the key and create tables. Register `leosmleol`, the initial owner in this edition. Remove public `install.php` and clear `install_key` afterwards. An absent `backend` setting defaults to `host`.
+Replace the example with the **same** `proxy_secret` configured on LChatHost: use at least 32 characters without whitespace. The gateway sends it only to the backend over HTTPS, not to visitors. `pc` is the gateway mode name: the backend may run on your PC or another provider. If website and backend use the same machine, use a separate HTTPS domain or directory with correct access rules. Include a backend subdirectory in the URL if necessary. Check that the web host can make outbound HTTPS requests to the backend. Never upload private configs or data to GitHub.
 
-## 3. Choose the PC backend
+## 3. Install and test
 
-1. Install PHP, Apache and MySQL/MariaDB on the PC. Deploy the **same LChatHost files and version**; verify `.htaccess` protects private files. Configure the PC database, install tables and create the owner as above. Keep the PC's own config at `'backend' => ['mode' => 'host', 'url' => '']` to avoid a proxy loop.
-2. Make the PC PHP server accessible to the website host through a separate **HTTPS URL with a trusted certificate**, for example `https://backend.example.com/`. An appropriate HTTPS tunnel can be used. The gateway rejects HTTP and self-signed certificates. Do not expose the database port to the internet. Include any backend subdirectory in the URL.
-3. In the **website host's** config select the PC:
+Open the public LChatWeb `https://your-site/install.php` and enter the **LChatHost** installation key; tables are created on LChatHost. Register `leosmleol`, the initial owner in this edition. Remove `install.php` from both installations and clear `install_key` on LChatHost afterwards. Test login, messages, attachments and calls from two devices. The admin page is served by LChatWeb; authorization and actions are checked on LChatHost. The owner can change the site name, registration, call limit and TURN settings in its settings section. These values override the config until reset. The backend URL and gateway secret are configured in LChatWeb's config, not this form.
 
-   ```php
-   'backend' => ['mode' => 'pc', 'url' => 'https://backend.example.com/'],
-   ```
+Use compatible versions of LChatWeb and LChatHost. If the backend is down the web page may load, but login and messages fail. For a 502, check the HTTPS URL, certificate, connectivity, PHP `curl`, tunnel and both PHP logs. The backend's public URL is also reachable directly: enforce the application's access controls, update the server and protect config and tunnel tokens.
 
-   Replace the address. The website host does not need an application database in this mode; PHP `curl` is required. The PC database and `data/` and `files/` must be accessible to PHP. The gateway supports regular GET/POST requests and uploads up to 10 MB; the application's attachment limit is 8 MB.
-4. In the **PC** config set `public_url` to the public website address and leave `session_domain` empty. Start the PC and tunnel and open the public HTTPS website. Test registration, login, file upload and a call from two devices.
+Calls across networks may require a separate TURN server with a reachable listener and UDP relay range. Configure `turn` on **LChatHost**. See [calls and TURN](https://github.com/leosmleol-svg/LChat/blob/main/CALLS.md) and [tunnel tools](https://github.com/leosmleol-svg/LChat/blob/main/PORT_TOOLS.md).
 
-The PC's public HTTPS backend address is also reachable directly: protect the server and follow the application's access controls. Keep configs and tunnel tokens secret. Remove the installer on the PC after setup. The proxy is not a TURN server; calls across networks may need a separate TURN service with reachable UDP relay ports. Configure `turn` and `call_transport` in the **PC** config.
-
-## Updates and troubleshooting
-
-Update PHP code and assets on the website host and PC together. Preserve private `config.php` and user data. A 502 in PC mode means the website host could not reach the PC HTTPS server: check the URL, PC, certificate, tunnel, outbound connections and PHP logs. See the [tunnel tools guide](https://github.com/leosmleol-svg/LChat/blob/main/PORT_TOOLS.md) and [calling guide](https://github.com/leosmleol-svg/LChat/blob/main/CALLS.md). License and UI-source attribution remain in this repository.
+Before updating, back up the LChatHost database, `config.php`, `data/` and `files/`, and the LChatWeb config. GitHub Pages cannot run PHP; GitHub stores the source only. This split deployment has not been tested on a real hosting provider.
