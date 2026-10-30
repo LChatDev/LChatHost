@@ -1,0 +1,9 @@
+.bot-card{padding:14px;margin:10px 0;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}
+.bot-card-heading{display:flex;align-items:center;gap:10px;font-weight:600;overflow-wrap:anywhere}
+.bot-card-heading .avatar{width:36px;height:36px;font-size:17px}
+.bot-card-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.bot-card-actions .button{padding:8px 11px;font-size:12px}
+.bot-create-form{margin-top:17px;padding-top:9px;border-top:1px solid var(--line)}
+.bot-create-form label{margin:8px 0}
+.bot-add-form select,.bot-token{display:block;width:100%;padding:12px;margin:12px 0;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);font:inherit}
+.bot-token{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px}

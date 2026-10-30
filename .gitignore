@@ -1,0 +1,13 @@
+# Private configuration and runtime state
+**/config.php
+/data/*
+!/data/.htaccess
+!/data/index.php
+/files/*
+!/files/.htaccess
+*.log
+*.bak
+*.old
+.env
+.DS_Store
+Thumbs.db

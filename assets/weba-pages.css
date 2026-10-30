@@ -1,0 +1,30 @@
+@import url('weba-fonts/roboto.css');
+/* Web A palette for LChat's setup, documentation and administration pages. */
+:root{color-scheme:dark;--bg:#0f0f0f;--panel:#212121;--panel2:#2c2c2c;--line:#ffffff16;--text:#fff;--muted:#aaa;--accent:#8774e1;--blue:#8774e1;--green:#63c987}
+body{background:#0f0f0f!important;color:#fff!important;font-family:Roboto,"Segoe UI",Arial,sans-serif!important}
+.brand-mark,.brand span{background:#8774e1!important;color:#fff!important;box-shadow:none!important}
+.primary,.button.primary{background:#8774e1!important;color:#fff!important;box-shadow:none!important}
+.primary:hover,.button.primary:hover{background:#766ac8!important}
+.top{background:#212121ec!important;border-color:#ffffff16!important}
+.toc,.section,.install-card{background:#212121!important;border:1px solid #ffffff16!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.section{border-radius:16px!important}.section h2,.section h3,.install-card h1{color:#fff!important}
+.section p,.section .steps,.hero p,.install-card p{color:#aaa!important}
+pre{background:#0f0f0f!important;border-color:#ffffff16!important;color:#ddd!important}
+code,.commands code{color:#b8a8ff!important}
+.note{background:#8774e121!important;border-color:#8774e1!important}
+.button.secondary,.toc a:hover{background:#2c2c2c!important;border-color:#ffffff16!important}
+.install-card label{color:#aaa!important}.install-card input{background:#2c2c2c!important;border:1px solid #555!important;color:#fff!important}
+.install-card input:focus{border-color:#8774e1!important;outline:2px solid #8774e144}
+#admin-dashboard{background:#0f0f0f!important;color:#fff!important}
+#admin-dashboard>section,#admin-dashboard .admin-hero,#admin-dashboard .admin-nav,#admin-dashboard .admin-stat,.admin-stat{background:#212121!important;border:1px solid #ffffff16!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+#admin-dashboard h1,#admin-dashboard h2,#admin-dashboard h3{color:#fff!important}
+#admin-dashboard p,#admin-dashboard small,#admin-dashboard .muted{color:#aaa}
+#admin-dashboard button:not(.primary),#admin-dashboard a:not(.primary){color:#b8a8ff}
+#admin-dashboard input,#admin-dashboard textarea,#admin-dashboard select{background:#2c2c2c!important;border:1px solid #555!important;color:#fff!important}
+#admin-dashboard input:focus,#admin-dashboard textarea:focus,#admin-dashboard select:focus{border-color:#8774e1!important}
+#admin-dashboard .admin-nav a:hover,#admin-dashboard button:hover{background:#2c2c2c!important}
+.section,.install-card,#admin-dashboard>section{animation:webaPageIn .3s cubic-bezier(.25,1,.5,1) both}
+.button,.toc a,#admin-dashboard button,#admin-dashboard .admin-nav a{transition:background-color .16s ease-out,color .16s ease-out,transform .18s cubic-bezier(.25,1,.5,1)}
+.button:hover,#admin-dashboard .admin-nav a:hover{transform:translateY(-1px)}
+@keyframes webaPageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.brand-mark,.section,.install-card,#admin-dashboard>section{animation:none!important}.button,.toc a,#admin-dashboard button,#admin-dashboard .admin-nav a{transition:none!important}}

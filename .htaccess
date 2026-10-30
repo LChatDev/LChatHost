@@ -1,0 +1,18 @@
+Options -Indexes
+DirectoryIndex index.php
+AddType application/manifest+json .webmanifest
+RewriteEngine On
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+RewriteRule ^bot([0-9]+:[a-f0-9]{48})/([A-Za-z]+)$ bot-api.php?token=$1&method=$2 [QSA,L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([^/.]+)/?$ channel.php?slug=$1 [B,L]
+<FilesMatch "(^\.|^(config|app|cleanup)\.php$|\.(md|json|log|bak|old|ini|env|cmd|ps1|yaml|yml|conf)$)">
+  Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "same-origin"
+  Header always set X-Frame-Options "DENY"
+</IfModule>
