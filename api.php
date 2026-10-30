@@ -16,9 +16,10 @@ try {
     if (!in_array($action, $read, true)) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'Используйте POST.');
         if (!hash_equals($ctx['csrf'], $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) fail(403, 'Обновите страницу и повторите действие.');
-        if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 65536) fail(413, 'Слишком большой запрос.');
-        $raw = file_get_contents('php://input', false, null, 0, 65537);
-        if (strlen($raw) > 65536) fail(413, 'Слишком большой запрос.');
+        $maxRequest = in_array($action, ['message.send', 'message.edit'], true) ? MESSAGE_REQUEST_MAX_BYTES : 65536;
+        if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxRequest) fail(413, 'Слишком большой запрос.');
+        $raw = file_get_contents('php://input', false, null, 0, $maxRequest + 1);
+        if ($raw === false || strlen($raw) > $maxRequest) fail(413, 'Слишком большой запрос.');
         $data = json_decode($raw, true);
         if (!is_array($data)) fail(400, 'Ожидается JSON.');
     } elseif ($_SERVER['REQUEST_METHOD'] !== 'GET') fail(405, 'Используйте GET.');
@@ -41,7 +42,7 @@ try {
         $latest = one('SELECT MAX(m.id) AS id FROM messages m JOIN members mem ON mem.chat_id = m.chat_id WHERE mem.user_id = ?', [$user['id']]);
         $cursor = (int)($latest['id'] ?? 0); $items = [];
         if (array_key_exists('after', $data)) {
-            $rows = query('SELECT m.id, m.chat_id, m.user_id, m.body, m.created_at, u.name, c.title, c.kind, mem.last_read, e.kind AS event_kind FROM messages m JOIN members mem ON mem.chat_id = m.chat_id JOIN chats c ON c.id = m.chat_id JOIN users u ON u.id = m.user_id LEFT JOIN message_events e ON e.message_id = m.id WHERE mem.user_id = ? AND m.id > ? ORDER BY m.id LIMIT 100', [$user['id'], $after])->fetchAll();
+            $rows = query('SELECT m.id, m.chat_id, m.user_id, SUBSTR(m.body, 1, 500) AS body, m.created_at, u.name, c.title, c.kind, mem.last_read, e.kind AS event_kind FROM messages m JOIN members mem ON mem.chat_id = m.chat_id JOIN chats c ON c.id = m.chat_id JOIN users u ON u.id = m.user_id LEFT JOIN message_events e ON e.message_id = m.id WHERE mem.user_id = ? AND m.id > ? ORDER BY m.id LIMIT 100', [$user['id'], $after])->fetchAll();
             $cursor = $after;
             foreach ($rows as $row) {
                 $cursor = max($cursor, (int)$row['id']);
@@ -207,7 +208,7 @@ try {
     if ($action === 'chats' || $action === 'sync') {
         query('UPDATE users SET last_seen = ? WHERE id = ? AND last_seen < ?', [stamp(), $uid, stamp(-15)]);
         $chats = query("SELECT c.id, c.kind, c.title, c.owner_id, c.invite_token, c.created_at, m.role, (SELECT slug FROM channel_details WHERE chat_id=c.id) AS channel_slug,
-            latest.body AS last_message, latest.created_at AS last_message_at, latest.id AS last_message_id, latest.user_id AS last_message_user_id,
+            SUBSTR(latest.body, 1, 500) AS last_message, latest.created_at AS last_message_at, latest.id AS last_message_id, latest.user_id AS last_message_user_id,
             (SELECT id FROM messages WHERE chat_id = c.id AND user_id <> ? ORDER BY id DESC LIMIT 1) AS last_incoming_id,
             (SELECT COUNT(*) FROM messages WHERE chat_id = c.id AND id > m.last_read AND user_id <> ?) AS unread,
             (SELECT COUNT(*) FROM members WHERE chat_id = c.id) AS member_count
@@ -307,7 +308,7 @@ try {
         rate('message-edit:' . $uid, 60, 60);
         $id = (int)($data['message_id'] ?? 0);
         if ($id < 1) fail(422, 'Укажите сообщение.');
-        $body = field($data, 'body', 1, 4000);
+        $body = message_text($data);
         $message = one('SELECT m.id, m.user_id, m.body, m.edited_at, f.message_id AS file_id, i.message_id AS invite_id, e.message_id AS event_id FROM messages m LEFT JOIN message_files f ON f.message_id = m.id LEFT JOIN message_invites i ON i.message_id = m.id LEFT JOIN message_events e ON e.message_id = m.id WHERE m.id = ? AND m.chat_id = ?', [$id, $chatId]);
         if (!$message) fail(404, 'Сообщение не найдено.');
         if ((int)$message['user_id'] !== $uid) fail(403, 'Можно редактировать только свои сообщения.');
@@ -357,7 +358,7 @@ try {
     if ($action === 'message.send') {
         if ($chat['kind'] === 'channel' && $chat['role'] !== 'owner') fail(403, 'Публиковать в канале может только владелец.');
         rate('message:' . $uid, 80, 60);
-        $body = field($data, 'body', 1, 4000); $nonce = field($data, 'nonce', 16, 64);
+        $body = message_text($data); $nonce = field($data, 'nonce', 16, 64);
         if (!preg_match('/^[a-zA-Z0-9_-]+$/D', $nonce)) fail(422, 'Некорректный идентификатор сообщения.');
         $replyTo = max(0, (int)($data['reply_to_id'] ?? 0));
         if ($replyTo && !one('SELECT id FROM messages WHERE id = ? AND chat_id = ?', [$replyTo, $chatId])) fail(404, 'Сообщение для ответа не найдено.');

@@ -2,6 +2,17 @@
 declare(strict_types=1);
 if (!defined('LCHAT_INTERNAL')) { http_response_code(404); exit; }
 
+function upgrade_message_columns(PDO $pdo): void {
+    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql') return;
+    foreach ([['messages', 'body', 'MEDIUMTEXT'], ['bot_updates', 'payload', 'LONGTEXT']] as [$table, $column, $target]) {
+        $info = $pdo->query("SHOW FULL COLUMNS FROM `$table` LIKE '$column'")->fetch(PDO::FETCH_ASSOC);
+        if (!$info || $info['Null'] !== 'NO' || !preg_match('/^utf8mb4_[a-z0-9_]+$/iD', (string)$info['Collation'])) throw new RuntimeException('Unexpected message storage schema.');
+        $type = strtolower((string)$info['Type']);
+        if (!in_array($type, ['tinytext', 'text', 'mediumtext', 'longtext'], true)) throw new RuntimeException('Unexpected message storage type.');
+        $widen = $target === 'MEDIUMTEXT' ? in_array($type, ['tinytext', 'text'], true) : $type !== 'longtext';
+        if ($widen) $pdo->exec("ALTER TABLE `$table` MODIFY `$column` $target CHARACTER SET utf8mb4 COLLATE " . $info['Collation'] . ' NOT NULL');
+    }
+}
 function ensure_features(): void {
     static $ready = false;
     if ($ready) return;
@@ -89,7 +100,7 @@ function ensure_features(): void {
     if ((int)$version['value'] < 15) {
         $mysql = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
         $suffix = $mysql ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
-        db()->exec('CREATE TABLE IF NOT EXISTS bot_updates (id BIGINT PRIMARY KEY, bot_user_id INTEGER NOT NULL, event_key VARCHAR(80) NOT NULL, payload TEXT NOT NULL, created_at DATETIME NOT NULL, delivered_at DATETIME NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at DATETIME NOT NULL, UNIQUE(bot_user_id, event_key), FOREIGN KEY(bot_user_id) REFERENCES users(id) ON DELETE CASCADE)' . $suffix);
+        db()->exec('CREATE TABLE IF NOT EXISTS bot_updates (id BIGINT PRIMARY KEY, bot_user_id INTEGER NOT NULL, event_key VARCHAR(80) NOT NULL, payload ' . ($mysql ? 'LONGTEXT' : 'TEXT') . ' NOT NULL, created_at DATETIME NOT NULL, delivered_at DATETIME NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at DATETIME NOT NULL, UNIQUE(bot_user_id, event_key), FOREIGN KEY(bot_user_id) REFERENCES users(id) ON DELETE CASCADE)' . $suffix);
         db()->exec('CREATE TABLE IF NOT EXISTS bot_webhooks (bot_user_id INTEGER PRIMARY KEY, url VARCHAR(2048) NOT NULL, secret_token VARCHAR(256) NOT NULL DEFAULT \'\', last_error_message VARCHAR(500) NOT NULL DEFAULT \'\', last_error_at DATETIME NULL, FOREIGN KEY(bot_user_id) REFERENCES users(id) ON DELETE CASCADE)' . $suffix);
         db()->exec('CREATE TABLE IF NOT EXISTS bot_message_markup (message_id INTEGER PRIMARY KEY, markup_json TEXT NOT NULL, FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE)' . $suffix);
         db()->exec('CREATE TABLE IF NOT EXISTS bot_media_kinds (message_id INTEGER PRIMARY KEY, kind VARCHAR(16) NOT NULL, FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE)' . $suffix);
@@ -107,6 +118,10 @@ function ensure_features(): void {
         db()->exec('CREATE TABLE IF NOT EXISTS bot_chat_keyboards (chat_id INTEGER PRIMARY KEY, bot_user_id INTEGER NOT NULL, message_id INTEGER NOT NULL, markup_json TEXT NOT NULL, FOREIGN KEY(chat_id) REFERENCES chats(id) ON DELETE CASCADE, FOREIGN KEY(bot_user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE)' . $suffix);
         db()->exec('CREATE TABLE IF NOT EXISTS bot_keyboard_dismissals (chat_id INTEGER NOT NULL, user_id INTEGER NOT NULL, message_id INTEGER NOT NULL, PRIMARY KEY(chat_id, user_id), FOREIGN KEY(chat_id) REFERENCES chats(id) ON DELETE CASCADE, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE)' . $suffix);
         query('UPDATE settings SET value = ? WHERE name = ?', ['16', 'schema_version']);
+    }
+    if ((int)$version['value'] < 17) {
+        upgrade_message_columns(db());
+        query('UPDATE settings SET value = ? WHERE name = ?', ['17', 'schema_version']);
     }
     try { bot_creator_install(); }
     catch (Throwable $e) { error_log('LChat BotCreator provision: ' . get_class($e) . ' ' . $e->getMessage()); }
@@ -146,6 +161,10 @@ function admin_lock(int $uid): void {
 function moderation_messages(int $chatId, array $data): array {
     $before = max(0, (int)($data['before'] ?? 0));
     $sql = 'SELECT m.id, m.user_id, m.body, m.created_at, u.name, u.username, f.original_name AS file_name, f.size AS file_size, v.duration AS voice_duration, mm.message_id AS moderator FROM messages m JOIN users u ON u.id = m.user_id LEFT JOIN message_files f ON f.message_id = m.id LEFT JOIN message_voice v ON v.message_id = m.id LEFT JOIN moderator_messages mm ON mm.message_id = m.id WHERE m.chat_id = ?';
-    $rows = $before ? query($sql . ' AND m.id < ? ORDER BY m.id DESC LIMIT 100', [$chatId, $before])->fetchAll() : query($sql . ' ORDER BY m.id DESC LIMIT 100', [$chatId])->fetchAll();
-    return ['messages' => array_reverse($rows), 'has_more' => count($rows) === 100];
+    $length = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? 'OCTET_LENGTH(body)' : 'LENGTH(CAST(body AS BLOB))';
+    $meta = $before ? query('SELECT id, ' . $length . ' AS bytes FROM messages WHERE chat_id = ? AND id < ? ORDER BY id DESC LIMIT 100', [$chatId, $before])->fetchAll() : query('SELECT id, ' . $length . ' AS bytes FROM messages WHERE chat_id = ? ORDER BY id DESC LIMIT 100', [$chatId])->fetchAll();
+    $ids = []; $total = 0;
+    foreach ($meta as $item) { $size = (int)$item['bytes']; if ($ids && $total + $size > MESSAGE_TEXT_MAX_BYTES) break; $ids[] = (int)$item['id']; $total += $size; }
+    $rows = $ids ? query($sql . ' AND m.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY m.id ASC', array_merge([$chatId], $ids))->fetchAll() : [];
+    return ['messages' => $rows, 'has_more' => count($ids) < count($meta) || count($meta) === 100];
 }

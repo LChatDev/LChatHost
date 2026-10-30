@@ -25,7 +25,7 @@ function bot_number(mixed $value, string $name, int $minimum = 1): int {
 function bot_text(mixed $value): string {
     if (!is_string($value)) bot_error(400, 'Укажите текст сообщения.');
     $value = trim($value);
-    if ($value === '' || mb_strlen($value, 'UTF-8') > 4000) bot_error(400, 'Текст должен содержать от 1 до 4000 символов.');
+    if ($value === '' || !mb_check_encoding($value, 'UTF-8') || strlen($value) > MESSAGE_TEXT_MAX_BYTES || preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $value)) bot_error(400, 'Текст должен быть в UTF-8 и не превышать 10 МиБ.');
     return $value;
 }
 function bot_boolean(mixed $value): bool {
@@ -79,12 +79,12 @@ try {
     } else {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') bot_error(405, 'Используйте POST.');
         $multipart = str_contains(strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'multipart/form-data');
-        $maxBytes = $multipart ? 10 * 1024 * 1024 : 65536;
+        $maxBytes = $multipart ? 10 * 1024 * 1024 : (in_array($method, ['sendMessage', 'editMessageText'], true) ? MESSAGE_REQUEST_MAX_BYTES : 65536);
         if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBytes) bot_error(413, 'Слишком большой запрос.');
         if ($multipart) $data = $_POST;
         else {
-            $raw = file_get_contents('php://input', false, null, 0, 65537);
-            if ($raw === false || strlen($raw) > 65536) bot_error(413, 'Слишком большой запрос.');
+            $raw = file_get_contents('php://input', false, null, 0, $maxBytes + 1);
+            if ($raw === false || strlen($raw) > $maxBytes) bot_error(413, 'Слишком большой запрос.');
             $data = str_contains(strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'application/json') ? json_decode($raw, true) : $_POST;
         }
         if (!is_array($data)) bot_error(400, 'Ожидается JSON или данные формы.');
@@ -126,7 +126,10 @@ try {
         $offset = bot_number($data['offset'] ?? 0, 'offset', 0);
         $limit = min(100, bot_number($data['limit'] ?? 50, 'limit'));
         if ($offset > 0) query('DELETE FROM bot_updates WHERE bot_user_id = ? AND id < ?', [$botId, $offset]);
-        $rows = query('SELECT payload FROM bot_updates WHERE bot_user_id = ? AND delivered_at IS NULL AND id >= ? ORDER BY id LIMIT ' . $limit, [$botId, $offset])->fetchAll();
+        $length = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? 'OCTET_LENGTH(payload)' : 'LENGTH(CAST(payload AS BLOB))';
+        $meta = query('SELECT id, ' . $length . ' AS bytes FROM bot_updates WHERE bot_user_id = ? AND delivered_at IS NULL AND id >= ? ORDER BY id LIMIT ' . $limit, [$botId, $offset])->fetchAll();
+        $ids = []; $total = 0; foreach ($meta as $item) { $size = (int)$item['bytes']; if ($ids && $total + $size > MESSAGE_TEXT_MAX_BYTES) break; $ids[] = (int)$item['id']; $total += $size; }
+        $rows = $ids ? query('SELECT payload FROM bot_updates WHERE bot_user_id = ? AND id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY id', array_merge([$botId], $ids))->fetchAll() : [];
         bot_result(array_map(static fn(array $row): array => json_decode($row['payload'], true) ?: [], $rows));
     }
     if ($method === 'getFile') {

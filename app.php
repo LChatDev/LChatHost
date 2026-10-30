@@ -108,6 +108,16 @@ function field(array $data, string $key, int $min, int $max): string {
     if ($n < $min || $n > $max) fail(422, 'Поле «' . $key . '»: от ' . $min . ' до ' . $max . ' символов.');
     return $v;
 }
+const MESSAGE_TEXT_MAX_BYTES = 10 * 1024 * 1024;
+const MESSAGE_REQUEST_MAX_BYTES = 64 * 1024 * 1024;
+function message_text(array $data): string {
+    $v = $data['body'] ?? null;
+    if (!is_string($v) || !mb_check_encoding($v, 'UTF-8')) fail(422, 'Некорректный текст сообщения.');
+    $v = trim($v);
+    if ($v === '' || strlen($v) > MESSAGE_TEXT_MAX_BYTES) fail(422, 'Текст сообщения: максимум 10 МиБ в UTF-8.');
+    if (preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', $v)) fail(422, 'Текст содержит неподдерживаемые управляющие символы.');
+    return $v;
+}
 function member(int $chat, int $uid): array {
     $row = one('SELECT c.*, m.role, m.last_read FROM chats c JOIN members m ON m.chat_id = c.id WHERE c.id = ? AND m.user_id = ?', [$chat, $uid]);
     if (!$row) fail(403, 'Нет доступа к этому чату.');

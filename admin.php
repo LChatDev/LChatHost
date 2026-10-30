@@ -156,7 +156,7 @@ function admin_page_moderation(string $action, array $data, array $user): void {
     if ($action === 'chat.send') {
         $chatId = (int)($data['chat_id'] ?? 0);
         if (!one('SELECT id FROM chats WHERE id = ?', [$chatId])) fail(404, 'Чат не найден.');
-        $body = field($data, 'body', 1, 4000); $nonce = field($data, 'nonce', 16, 64);
+        $body = message_text($data); $nonce = field($data, 'nonce', 16, 64);
         if (!preg_match('/^[a-zA-Z0-9_-]+$/D', $nonce)) fail(422, 'Некорректный идентификатор сообщения.');
         $sentMessageId = transaction(function() use ($chatId, $body, $nonce, $user): int {
             admin_page_lock((int)$user['id']);
@@ -196,8 +196,10 @@ try {
         } else {
             if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'Используйте POST.');
             if (!hash_equals($ctx['csrf'], $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) fail(403, 'Обновите страницу и повторите действие.');
-            $raw = file_get_contents('php://input', false, null, 0, 65537);
-            if (strlen($raw) > 65536) fail(413, 'Слишком большой запрос.');
+            $maxRequest = $action === 'chat.send' ? MESSAGE_REQUEST_MAX_BYTES : 65536;
+            if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxRequest) fail(413, 'Слишком большой запрос.');
+            $raw = file_get_contents('php://input', false, null, 0, $maxRequest + 1);
+            if ($raw === false || strlen($raw) > $maxRequest) fail(413, 'Слишком большой запрос.');
             $data = json_decode($raw, true);
             if (!is_array($data)) fail(400, 'Ожидается JSON.');
         }

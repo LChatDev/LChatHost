@@ -158,7 +158,10 @@ function bot_platform_schedule_dispatch(): void {
 function bot_platform_dispatch_pending(int $limit = 20): int {
     if (!extension_loaded('curl')) return 0;
     $limit = max(1, min(100, $limit));
-    $rows = query('SELECT q.id, q.payload, q.attempts, w.bot_user_id, w.url, w.secret_token FROM bot_updates q JOIN bot_webhooks w ON w.bot_user_id = q.bot_user_id WHERE q.delivered_at IS NULL AND q.next_attempt_at <= ? ORDER BY q.id LIMIT ' . $limit, [stamp()])->fetchAll();
+    $length = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? 'OCTET_LENGTH(q.payload)' : 'LENGTH(CAST(q.payload AS BLOB))';
+    $meta = query('SELECT q.id, ' . $length . ' AS bytes FROM bot_updates q JOIN bot_webhooks w ON w.bot_user_id = q.bot_user_id WHERE q.delivered_at IS NULL AND q.next_attempt_at <= ? ORDER BY q.id LIMIT ' . $limit, [stamp()])->fetchAll();
+    $ids = []; $total = 0; foreach ($meta as $item) { $size = (int)$item['bytes']; if ($ids && $total + $size > MESSAGE_TEXT_MAX_BYTES) break; $ids[] = (int)$item['id']; $total += $size; }
+    $rows = $ids ? query('SELECT q.id, q.payload, q.attempts, w.bot_user_id, w.url, w.secret_token FROM bot_updates q JOIN bot_webhooks w ON w.bot_user_id = q.bot_user_id WHERE q.delivered_at IS NULL AND q.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY q.id', $ids)->fetchAll() : [];
     $done = 0;
     foreach ($rows as $row) {
         $claimed = query('UPDATE bot_updates SET attempts = attempts + 1, next_attempt_at = ? WHERE id = ? AND delivered_at IS NULL AND next_attempt_at <= ?', [stamp(60), $row['id'], stamp()]);

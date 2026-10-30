@@ -7,12 +7,22 @@ function active_calls(int $uid): array {
 function message_page(int $chatId, int $uid, array $data, ?array $calls = null): array {
     member($chatId, $uid);
     $after = max(0, (int)($data['after'] ?? 0)); $before = max(0, (int)($data['before'] ?? 0));
-    $base = 'SELECT m.id, m.user_id, m.body, m.nonce, m.created_at, m.reply_to_id, m.edited_at, reply.body AS reply_body, reply_user.name AS reply_name, u.name, u.username, i.kind AS invite_kind, i.token AS invite_token, i.title AS invite_title, e.kind AS event_kind, e.token AS event_token, f.original_name AS file_name, f.size AS file_size, v.duration AS voice_duration, mm.message_id AS moderator, k.markup_json AS reply_markup FROM messages m JOIN users u ON u.id = m.user_id LEFT JOIN messages reply ON reply.id = m.reply_to_id AND reply.chat_id = m.chat_id LEFT JOIN users reply_user ON reply_user.id = reply.user_id LEFT JOIN message_invites i ON i.message_id = m.id LEFT JOIN message_events e ON e.message_id = m.id LEFT JOIN message_files f ON f.message_id = m.id LEFT JOIN message_voice v ON v.message_id = m.id LEFT JOIN moderator_messages mm ON mm.message_id = m.id LEFT JOIN bot_message_markup k ON k.message_id = m.id WHERE m.chat_id = ?';
-    if ($after) $rows = query($base . ' AND m.id > ? ORDER BY m.id LIMIT 100', [$chatId, $after])->fetchAll();
-    else {
-        $rows = $before ? query($base . ' AND m.id < ? ORDER BY m.id DESC LIMIT 50', [$chatId, $before])->fetchAll() : query($base . ' ORDER BY m.id DESC LIMIT 50', [$chatId])->fetchAll();
-        $rows = array_reverse($rows);
+    $base = 'SELECT m.id, m.user_id, m.body, m.nonce, m.created_at, m.reply_to_id, m.edited_at, SUBSTR(reply.body, 1, 500) AS reply_body, reply_user.name AS reply_name, u.name, u.username, i.kind AS invite_kind, i.token AS invite_token, i.title AS invite_title, e.kind AS event_kind, e.token AS event_token, f.original_name AS file_name, f.size AS file_size, v.duration AS voice_duration, mm.message_id AS moderator, k.markup_json AS reply_markup FROM messages m JOIN users u ON u.id = m.user_id LEFT JOIN messages reply ON reply.id = m.reply_to_id AND reply.chat_id = m.chat_id LEFT JOIN users reply_user ON reply_user.id = reply.user_id LEFT JOIN message_invites i ON i.message_id = m.id LEFT JOIN message_events e ON e.message_id = m.id LEFT JOIN message_files f ON f.message_id = m.id LEFT JOIN message_voice v ON v.message_id = m.id LEFT JOIN moderator_messages mm ON mm.message_id = m.id LEFT JOIN bot_message_markup k ON k.message_id = m.id WHERE m.chat_id = ?';
+    // Choose IDs using byte lengths before loading bodies; never return an unbounded batch of large messages.
+    $length = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? 'OCTET_LENGTH(body)' : 'LENGTH(CAST(body AS BLOB))';
+    $limit = $after ? 100 : 50;
+    $condition = $after ? ' AND id > ?' : ($before ? ' AND id < ?' : '');
+    $params = ($after || $before) ? [$chatId, $after ?: $before] : [$chatId];
+    $order = $after ? 'ASC' : 'DESC';
+    $meta = query('SELECT id, ' . $length . ' AS bytes FROM messages WHERE chat_id = ?' . $condition . ' ORDER BY id ' . $order . ' LIMIT ' . $limit, $params)->fetchAll();
+    $ids = []; $total = 0;
+    foreach ($meta as $item) {
+        $size = (int)$item['bytes'];
+        if ($ids && $total + $size > MESSAGE_TEXT_MAX_BYTES) break;
+        $ids[] = (int)$item['id']; $total += $size;
     }
+    $hasMore = count($ids) < count($meta) || count($meta) === $limit;
+    $rows = $ids ? query($base . ' AND m.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY m.id ASC', array_merge([$chatId], $ids))->fetchAll() : [];
     $people = query('SELECT u.id, u.name, u.username, u.last_seen, m.role, m.last_read FROM users u JOIN members m ON m.user_id = u.id WHERE m.chat_id = ? ORDER BY u.name', [$chatId])->fetchAll();
     $calls ??= active_calls($uid);
     $active = null;
@@ -38,9 +48,9 @@ function message_page(int $chatId, int $uid, array $data, ?array $calls = null):
     }
     $editAfter = max(0, (int)($data['edit_after'] ?? 0));
     $pollingEdits = $after > 0 || $editAfter > 0;
-    $edits = $pollingEdits ? query('SELECT e.id AS event_id, m.id AS message_id, m.body, m.edited_at, k.markup_json AS reply_markup FROM message_edits e JOIN messages m ON m.id = e.message_id LEFT JOIN bot_message_markup k ON k.message_id = m.id WHERE e.chat_id = ? AND e.id > ? ORDER BY e.id LIMIT 100', [$chatId, $editAfter])->fetchAll() : [];
+    $edits = $pollingEdits ? query('SELECT e.id AS event_id, m.id AS message_id, m.body, m.edited_at, k.markup_json AS reply_markup FROM message_edits e JOIN messages m ON m.id = e.message_id LEFT JOIN bot_message_markup k ON k.message_id = m.id WHERE e.chat_id = ? AND e.id > ? ORDER BY e.id LIMIT 1', [$chatId, $editAfter])->fetchAll() : [];
     $editCursor = $edits ? (int)end($edits)['event_id'] : ($pollingEdits ? $editAfter : (int)(one('SELECT MAX(id) AS id FROM message_edits WHERE chat_id = ?', [$chatId])['id'] ?? 0));
-    return ['messages' => $rows, 'edited_messages' => $edits, 'edit_cursor' => $editCursor, 'reaction_state' => $reactionState, 'removed_ids' => $removed, 'members' => $people, 'active_call' => $active, 'bot_keyboard' => bot_platform_keyboard($chatId, $uid), 'has_more' => $after ? count($rows) === 100 : count($rows) === 50];
+    return ['messages' => $rows, 'edited_messages' => $edits, 'edit_cursor' => $editCursor, 'reaction_state' => $reactionState, 'removed_ids' => $removed, 'members' => $people, 'active_call' => $active, 'bot_keyboard' => bot_platform_keyboard($chatId, $uid), 'has_more' => $hasMore];
 }
 function group_call_started(array $room, int $uid): void {
     if (!$room['chat_id'] || !$uid) return;
