@@ -146,6 +146,8 @@ function transaction(callable $action): mixed {
     try { $value = $action(); db()->commit(); return $value; }
     catch (Throwable $e) { if (db()->inTransaction()) db()->rollBack(); throw $e; }
 }
+require_once __DIR__ . '/apis/backend_gateway.php';
+backend_gateway();
 require_once __DIR__ . '/apis/features.php';
 require_once __DIR__ . '/apis/bot_accounts.php';
 require_once __DIR__ . '/apis/bot_creator.php';

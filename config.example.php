@@ -3,6 +3,8 @@ declare(strict_types=1);
 if (!defined('LCHAT_INTERNAL')) { http_response_code(404); exit; }
 
 return [
+    // host: PHP and database run here. pc: forward application requests to an HTTPS LChat backend on your PC.
+    'backend' => ['mode' => 'host', 'url' => ''],
     'database' => [
         'dsn' => 'mysql:host=localhost;port=3306;dbname=YOUR_DATABASE;charset=utf8mb4',
         'username' => 'YOUR_DATABASE_USER',
