@@ -17,15 +17,13 @@ return [
     'session_domain' => '',
     // WebRTC соединяет участников друг с другом; используйте небольшой лимит.
     'max_call_participants' => 8,
-    'ice_servers' => [
-        ['urls' => 'stun:stun.l.google.com:19302'],
-    ],
+    'ice_servers' => [],
     'turn' => [
         'urls' => 'turn:209.25.141.16:45209?transport=tcp',
         // Set this privately in config.php or the LCHAT_TURN_SECRET environment variable.
         'secret' => getenv('LCHAT_TURN_SECRET') ?: '',
         'ttl' => 3600,
     ],
-    'call_transport' => 'all',
+    'call_transport' => 'relay',
     'public_url' => 'https://your-domain.example',
 ];
