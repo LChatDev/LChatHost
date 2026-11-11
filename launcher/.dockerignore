@@ -1,0 +1,5 @@
+*
+!Dockerfile
+!site/
+!site/**
+!host-config.php

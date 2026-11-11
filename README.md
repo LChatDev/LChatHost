@@ -23,3 +23,7 @@ Backend for requests, sessions, messages, files and call signaling. Pages and as
 - Бесплатный домен / Free hostname: [Русский](FREE_DOMAIN_RU.md) · [English](FREE_DOMAIN_EN.md)
 
 Текст сообщения: до **10 МиБ в UTF-8**. При обновлении создайте резервную копию базы; MySQL-миграция расширяет поля сообщений и очереди ботов. Для больших запросов проверьте лимиты PHP, веб-сервера и `max_allowed_packet` MySQL (не менее 32 МиБ). Лимит вложений задаётся отдельно.
+
+## Панель для Windows и Linux / Windows and Linux panel
+
+[Скачать / Download](https://github.com/LChatDev/LChatHost/releases/tag/host-panel-v1.0.0) · [Русский](launcher/README_RU.md) · [English](launcher/README_EN.md)

@@ -1,0 +1,38 @@
+services:
+  db:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: lchat
+      MARIADB_USER: lchat
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
+    volumes: [database:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+  backend:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: settings.env
+    ports: ["127.0.0.1:18365:80"]
+    volumes:
+      - data:/var/www/html/data
+      - files:/var/www/html/files
+  quick:
+    profiles: [quick]
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "--url", "http://backend:80"]
+  named:
+    profiles: [named]
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+volumes:
+  database:
+  data:
+  files:

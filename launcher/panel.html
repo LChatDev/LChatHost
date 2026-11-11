@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="{{if .RU}}ru{{else}}en{{end}}">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width">
+{{if .Busy}}<meta http-equiv="refresh" content="3">{{end}}
+<title>LChatHost Panel</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui;background:#141920;color:#e8edf4}main{max-width:760px;margin:40px auto;padding:0 16px}section{margin:16px 0;padding:20px;background:#202833;border-radius:14px}h1,h2,p{margin:0 0 12px}h2{font-size:18px}input,button{font:inherit;padding:10px;border:1px solid #4b6077;border-radius:8px}input{display:block;width:100%;box-sizing:border-box;margin:5px 0 14px;background:#131b25;color:inherit}button{margin:4px;background:#274970;color:white;cursor:pointer}button:disabled{opacity:.5}pre,code{overflow-wrap:anywhere;white-space:pre-wrap}pre{max-height:380px;overflow:auto}a{color:#9dccff}
+</style>
+<main><h1>LChatHost</h1>
+<p>{{if .RU}}Панель запуска сервера и HTTPS-туннеля{{else}}Backend and HTTPS tunnel control panel{{end}}</p>
+{{if .Busy}}<p role="status">{{if .RU}}Выполняется команда…{{else}}Command running…{{end}}</p>{{end}}
+<section><h2>{{if .RU}}Компоненты{{else}}Components{{end}}</h2>
+{{if .Windows}}<form method="post"><button name="action" value="install" {{if .Busy}}disabled{{end}}>{{if .RU}}Установить Docker Desktop{{else}}Install Docker Desktop{{end}}</button></form>
+<p>{{if .RU}}После установки запустите Docker Desktop и завершите настройку WSL 2.{{else}}After installation, start Docker Desktop and finish WSL 2 setup.{{end}}</p>
+{{else}}<p>{{if .RU}}На Ubuntu 24.04 запустите этот файл в терминале с аргументом{{else}}On Ubuntu 24.04, run this binary in a terminal with{{end}} <code>--install-docker</code>. {{if .RU}}Разрешите своему пользователю работать с Docker по инструкции установки.{{else}}Ensure your user can access Docker as described in the installation guide.{{end}}</p>{{end}}</section>
+<section><h2>{{if .RU}}Сервер{{else}}Backend{{end}}</h2>
+<form method="post"><fieldset {{if .Busy}}disabled{{end}} style="border:0;padding:0">
+<label>{{if .RU}}HTTPS-адрес LChatWeb{{else}}LChatWeb HTTPS address{{end}}<input type="url" name="web" value="{{index .Config "WEB_URL"}}" placeholder="https://chat.example.com" required></label>
+<label>{{if .RU}}Токен постоянного туннеля Cloudflare (необязательно){{else}}Named Cloudflare tunnel token (optional){{end}}<input type="password" name="token" value="{{index .Config "TUNNEL_TOKEN"}}" autocomplete="off"></label>
+<label>{{if .RU}}Адрес TURN (необязательно){{else}}TURN URL (optional){{end}}<input name="turn" value="{{index .Config "TURN_URL"}}" placeholder="turn:turn.example.com:3478"></label>
+<label>{{if .RU}}Секрет TURN{{else}}TURN secret{{end}}<input type="password" name="turnSecret" value="{{index .Config "TURN_SECRET"}}" autocomplete="off"></label>
+<button name="action" value="start">{{if .RU}}Установить и запустить сервер{{else}}Install and start backend{{end}}</button>
+</fieldset></form>
+{{with index .Config "PROXY_SECRET"}}<details><summary>proxy_secret</summary><code>{{.}}</code></details>{{end}}
+{{with index .Config "INSTALL_KEY"}}<details><summary>install_key</summary><code>{{.}}</code></details>{{end}}
+</section>
+<section><h2>{{if .RU}}Доступ через Cloudflare{{else}}Access through Cloudflare{{end}}</h2>
+<p>{{if .RU}}Для постоянного туннеля задайте адрес сервиса http://backend:80 в панели Cloudflare. Временная ссылка меняется после перезапуска.{{else}}For a named tunnel, set the service address to http://backend:80 in Cloudflare. The temporary URL changes when the tunnel restarts.{{end}}</p>
+{{if .QuickURL}}<p>{{if .RU}}Адрес LChatHost{{else}}LChatHost address{{end}} <code>{{.QuickURL}}</code></p>{{end}}
+<form method="post"><fieldset {{if .Busy}}disabled{{end}} style="border:0;padding:0">
+<button name="action" value="quick">{{if .RU}}Временный туннель{{else}}Temporary tunnel{{end}}</button>
+<button name="action" value="named">{{if .RU}}Постоянный туннель{{else}}Named tunnel{{end}}</button>
+<button name="action" value="quicklogs">{{if .RU}}Журнал временного туннеля{{else}}Temporary tunnel logs{{end}}</button>
+<button name="action" value="namedlogs">{{if .RU}}Журнал постоянного туннеля{{else}}Named tunnel logs{{end}}</button>
+<button name="action" value="status">{{if .RU}}Статус{{else}}Status{{end}}</button>
+<button name="action" value="backendlogs">{{if .RU}}Журнал сервера{{else}}Backend logs{{end}}</button>
+<button name="action" value="stop">{{if .RU}}Остановить всё{{else}}Stop all{{end}}</button>
+</fieldset></form></section>
+{{if .Log}}<section><h2>{{if .RU}}Журнал{{else}}Log{{end}}</h2><pre>{{.Log}}</pre></section>{{end}}
+</main>
