@@ -145,7 +145,7 @@ func launchBrowser(address string) {
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
-		fmt.Println("LChatHost Panel 1.0.0", language, runtime.GOOS, runtime.GOARCH)
+		fmt.Println("LChatHost Panel 1.0.1", language, runtime.GOOS, runtime.GOARCH)
 		return
 	}
 	root, err := os.UserConfigDir()
@@ -167,6 +167,7 @@ func main() {
 		log.Fatal(err)
 	}
 	panelToken = randomKey()
+	csrfToken := randomKey()
 	panel, err := template.ParseFS(bundle, "panel.html")
 	if err != nil {
 		log.Fatal(err)
@@ -189,16 +190,20 @@ func main() {
 			mutex.Lock()
 			logText, working, cfg := lastLog, busy, settings()
 			mutex.Unlock()
-			_ = panel.Execute(w, map[string]any{"RU": language == "ru", "Busy": working, "Log": logText, "QuickURL": tunnelURL.FindString(logText), "Config": cfg, "Windows": runtime.GOOS == "windows"})
+			_ = panel.Execute(w, map[string]any{"RU": language == "ru", "Busy": working, "Log": logText, "QuickURL": tunnelURL.FindString(logText), "Config": cfg, "Windows": runtime.GOOS == "windows", "CSRF": csrfToken})
 			return
 		}
-		if r.Method != "POST" || r.Header.Get("Origin") != "http://"+host {
+		if r.Method != "POST" {
 			http.Error(w, "Forbidden", 403)
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 8192)
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Invalid form", 400)
+			return
+		}
+		if r.PostForm.Get("csrf") != csrfToken {
+			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 		mutex.Lock()
@@ -259,6 +264,12 @@ func action(form url.Values) error {
 		}
 		return compose("up", "-d", "--build", "backend")
 	case "quick", "named":
+		if settings()["WEB_URL"] == "" {
+			return fmt.Errorf("Start the backend first / Сначала запустите сервер")
+		}
+		if err := compose("up", "-d", "--wait", "backend"); err != nil {
+			return err
+		}
 		which := form.Get("action")
 		if which == "named" && settings()["TUNNEL_TOKEN"] == "" {
 			return fmt.Errorf("Save the tunnel token first / Сначала сохраните токен туннеля")

@@ -10,11 +10,11 @@
 <p>{{if .RU}}Панель запуска сервера и HTTPS-туннеля{{else}}Backend and HTTPS tunnel control panel{{end}}</p>
 {{if .Busy}}<p role="status">{{if .RU}}Выполняется команда…{{else}}Command running…{{end}}</p>{{end}}
 <section><h2>{{if .RU}}Компоненты{{else}}Components{{end}}</h2>
-{{if .Windows}}<form method="post"><button name="action" value="install" {{if .Busy}}disabled{{end}}>{{if .RU}}Установить Docker Desktop{{else}}Install Docker Desktop{{end}}</button></form>
+{{if .Windows}}<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><button name="action" value="install" {{if .Busy}}disabled{{end}}>{{if .RU}}Установить Docker Desktop{{else}}Install Docker Desktop{{end}}</button></form>
 <p>{{if .RU}}После установки запустите Docker Desktop и завершите настройку WSL 2.{{else}}After installation, start Docker Desktop and finish WSL 2 setup.{{end}}</p>
 {{else}}<p>{{if .RU}}На Ubuntu 24.04 запустите этот файл в терминале с аргументом{{else}}On Ubuntu 24.04, run this binary in a terminal with{{end}} <code>--install-docker</code>. {{if .RU}}Разрешите своему пользователю работать с Docker по инструкции установки.{{else}}Ensure your user can access Docker as described in the installation guide.{{end}}</p>{{end}}</section>
 <section><h2>{{if .RU}}Сервер{{else}}Backend{{end}}</h2>
-<form method="post"><fieldset {{if .Busy}}disabled{{end}} style="border:0;padding:0">
+<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><fieldset {{if .Busy}}disabled{{end}} style="border:0;padding:0">
 <label>{{if .RU}}HTTPS-адрес LChatWeb{{else}}LChatWeb HTTPS address{{end}}<input type="url" name="web" value="{{index .Config "WEB_URL"}}" placeholder="https://chat.example.com" required></label>
 <label>{{if .RU}}Токен постоянного туннеля Cloudflare (необязательно){{else}}Named Cloudflare tunnel token (optional){{end}}<input type="password" name="token" value="{{index .Config "TUNNEL_TOKEN"}}" autocomplete="off"></label>
 <label>{{if .RU}}Адрес TURN (необязательно){{else}}TURN URL (optional){{end}}<input name="turn" value="{{index .Config "TURN_URL"}}" placeholder="turn:turn.example.com:3478"></label>
@@ -27,7 +27,7 @@
 <section><h2>{{if .RU}}Доступ через Cloudflare{{else}}Access through Cloudflare{{end}}</h2>
 <p>{{if .RU}}Для постоянного туннеля задайте адрес сервиса http://backend:80 в панели Cloudflare. Временная ссылка меняется после перезапуска.{{else}}For a named tunnel, set the service address to http://backend:80 in Cloudflare. The temporary URL changes when the tunnel restarts.{{end}}</p>
 {{if .QuickURL}}<p>{{if .RU}}Адрес LChatHost{{else}}LChatHost address{{end}} <code>{{.QuickURL}}</code></p>{{end}}
-<form method="post"><fieldset {{if .Busy}}disabled{{end}} style="border:0;padding:0">
+<form method="post"><input type="hidden" name="csrf" value="{{.CSRF}}"><fieldset {{if .Busy}}disabled{{end}} style="border:0;padding:0">
 <button name="action" value="quick">{{if .RU}}Временный туннель{{else}}Temporary tunnel{{end}}</button>
 <button name="action" value="named">{{if .RU}}Постоянный туннель{{else}}Named tunnel{{end}}</button>
 <button name="action" value="quicklogs">{{if .RU}}Журнал временного туннеля{{else}}Temporary tunnel logs{{end}}</button>
