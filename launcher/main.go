@@ -53,15 +53,32 @@ func dockerCommand(args ...string) *exec.Cmd {
 	return c
 }
 
-func run(c *exec.Cmd) error {
-	output, err := c.CombinedOutput()
+type panelLogWriter struct{}
+
+func (panelLogWriter) Write(data []byte) (int, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
-	lastLog = string(output)
-	if err != nil {
-		lastLog += "\n" + err.Error()
+	lastLog += string(data)
+	const maxLog = 48 * 1024
+	if len(lastLog) > maxLog {
+		lastLog = lastLog[len(lastLog)-maxLog:]
 	}
-	return err
+	return len(data), nil
+}
+
+func run(c *exec.Cmd) error {
+	writer := panelLogWriter{}
+	c.Stdout, c.Stderr = writer, writer
+	c.WaitDelay = 5 * time.Second
+	if err := c.Start(); err != nil {
+		return err
+	}
+	timer := time.AfterFunc(15*time.Minute, func() {
+		_, _ = writer.Write([]byte("\nCommand timed out after 15 minutes / Команда прервана через 15 минут\n"))
+		_ = c.Process.Kill()
+	})
+	defer timer.Stop()
+	return c.Wait()
 }
 
 func settings() map[string]string {
@@ -145,7 +162,7 @@ func launchBrowser(address string) {
 
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "--version" {
-		fmt.Println("LChatHost Panel 1.0.1", language, runtime.GOOS, runtime.GOARCH)
+		fmt.Println("LChatHost Panel 1.0.2", language, runtime.GOOS, runtime.GOARCH)
 		return
 	}
 	root, err := os.UserConfigDir()
@@ -213,6 +230,7 @@ func main() {
 			return
 		}
 		busy = true
+		lastLog = ""
 		mutex.Unlock()
 		go func() {
 			defer func() { mutex.Lock(); busy = false; mutex.Unlock() }()
@@ -233,7 +251,7 @@ func main() {
 }
 
 func action(form url.Values) error {
-	args := []string{"compose", "--env-file", "settings.env", "-p", "lchathost-panel"}
+	args := []string{"compose", "--ansi", "never", "--progress", "plain", "--env-file", "settings.env", "-p", "lchathost-panel"}
 	compose := func(extra ...string) error {
 		return run(dockerCommand(append(append([]string{}, args...), extra...)...))
 	}
