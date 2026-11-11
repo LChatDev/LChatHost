@@ -29,3 +29,7 @@ Calls across networks may require a separate TURN server with a reachable listen
 Before updating, back up the LChatHost database, `config.php`, `data/` and `files/`, and the LChatWeb config. GitHub Pages cannot run PHP; GitHub stores the source only. This split deployment has not been tested on a real hosting provider.
 
 The example configuration points to the project owner’s TURN server at `turn:209.25.141.16:45209?transport=tcp`. Set its secret privately in `turn.secret` or the `LCHAT_TURN_SECRET` environment variable; the repository does not contain the secret. As in the main chat, transport is set to `relay`: without the secret the TURN server is not included, so calls cannot connect in this mode. Verify the server and its relay ports; a reachable TCP listener alone does not prove calls work.
+
+## Interface update, 11 November 2026
+
+For the glass appearance, smoother animations and relative last-seen status, update the website files from [LChatWeb](https://github.com/LChatDev/LChatWeb): `index.php`, `assets/app.js`, `assets/user-profile.js` (if present), `assets/glass-presence.css`. Refresh the browser afterward. This interface update does not require backend changes.
