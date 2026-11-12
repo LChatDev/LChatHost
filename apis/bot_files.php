@@ -57,7 +57,7 @@ function bot_file_send(int $botId, int $chatId, string $kind, array $data, ?stri
             query('UPDATE users SET name = name WHERE id = ?', [$botId]);
             $quota = one('SELECT COALESCE(SUM(f.size), 0) AS n FROM message_files f JOIN messages m ON m.id = f.message_id WHERE m.user_id = ?', [$botId]);
             if ((int)$quota['n'] + $size > 200 * 1024 * 1024) throw new DomainException('Лимит хранения файлов бота — 200 МБ.');
-            query('INSERT INTO messages (chat_id, user_id, body, nonce, reply_to_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$chatId, $botId, $body, 'bot_' . bin2hex(random_bytes(20)), $reply, stamp()]);
+            query('INSERT INTO messages (chat_id, user_id, body, nonce, reply_to_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$chatId, $botId, message_store($body), 'bot_' . bin2hex(random_bytes(20)), $reply, stamp()]);
             $id = (int)db()->lastInsertId();
             query('INSERT INTO message_files (message_id, stored_name, original_name, mime, size) VALUES (?, ?, ?, ?, ?)', [$id, $storedName, $name, $mime, $size]);
             query('INSERT INTO bot_media_kinds (message_id, kind) VALUES (?, ?)', [$id, $kind]);

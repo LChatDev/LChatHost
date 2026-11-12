@@ -130,7 +130,7 @@ try {
         $meta = query('SELECT id, ' . $length . ' AS bytes FROM bot_updates WHERE bot_user_id = ? AND delivered_at IS NULL AND id >= ? ORDER BY id LIMIT ' . $limit, [$botId, $offset])->fetchAll();
         $ids = []; $total = 0; foreach ($meta as $item) { $size = (int)$item['bytes']; if ($ids && $total + $size > MESSAGE_TEXT_MAX_BYTES) break; $ids[] = (int)$item['id']; $total += $size; }
         $rows = $ids ? query('SELECT payload FROM bot_updates WHERE bot_user_id = ? AND id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY id', array_merge([$botId], $ids))->fetchAll() : [];
-        bot_result(array_map(static fn(array $row): array => json_decode($row['payload'], true) ?: [], $rows));
+        bot_result(array_map(static fn(array $row): array => json_decode(message_read($row['payload']), true) ?: [], $rows));
     }
     if ($method === 'getFile') {
         $fileId = bot_number($data['file_id'] ?? null, 'file_id');
@@ -157,7 +157,7 @@ try {
         if ($reply && !one('SELECT id FROM messages WHERE id = ? AND chat_id = ?', [$reply, $chatId])) bot_error(400, 'Сообщение для ответа не найдено в этом чате.');
         $markup = bot_platform_markup($data['reply_markup'] ?? null);
         $messageId = transaction(static function () use ($chatId, $botId, $text, $reply, $markup): int {
-            query('INSERT INTO messages (chat_id, user_id, body, nonce, reply_to_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$chatId, $botId, $text, 'bot_' . bin2hex(random_bytes(20)), $reply, stamp()]);
+            query('INSERT INTO messages (chat_id, user_id, body, nonce, reply_to_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$chatId, $botId, message_store($text), 'bot_' . bin2hex(random_bytes(20)), $reply, stamp()]);
             $id = (int)db()->lastInsertId();
             if ($markup !== null) bot_platform_save_markup($id, $markup);
             return $id;
@@ -180,9 +180,9 @@ try {
         $markupProvided = array_key_exists('reply_markup', $data);
         $markup = $markupProvided ? bot_platform_markup($data['reply_markup']) : null;
         if ($markup !== null && !isset(json_decode($markup, true)['inline_keyboard'])) bot_error(400, 'При редактировании доступны только inline-кнопки.');
-        if ($message['body'] !== $text || $markupProvided) transaction(function () use ($chatId, $messageId, $text, $markup, $markupProvided): void {
+        if (message_read($message['body']) !== $text || $markupProvided) transaction(function () use ($chatId, $messageId, $text, $markup, $markupProvided): void {
             $at = stamp();
-            query('UPDATE messages SET body = ?, edited_at = ? WHERE id = ? AND chat_id = ?', [$text, $at, $messageId, $chatId]);
+            query('UPDATE messages SET body = ?, edited_at = ? WHERE id = ? AND chat_id = ?', [message_store($text), $at, $messageId, $chatId]);
             if ($markupProvided) bot_platform_save_markup($messageId, $markup);
             query('INSERT INTO message_edits (chat_id, message_id, edited_at) VALUES (?, ?, ?)', [$chatId, $messageId, $at]);
         });

@@ -7,7 +7,7 @@ function active_calls(int $uid): array {
 function message_page(int $chatId, int $uid, array $data, ?array $calls = null): array {
     member($chatId, $uid);
     $after = max(0, (int)($data['after'] ?? 0)); $before = max(0, (int)($data['before'] ?? 0));
-    $base = 'SELECT m.id, m.user_id, m.body, m.nonce, m.created_at, m.reply_to_id, m.edited_at, SUBSTR(reply.body, 1, 500) AS reply_body, reply_user.name AS reply_name, u.name, u.username, i.kind AS invite_kind, i.token AS invite_token, i.title AS invite_title, e.kind AS event_kind, e.token AS event_token, f.original_name AS file_name, f.size AS file_size, v.duration AS voice_duration, mm.message_id AS moderator, k.markup_json AS reply_markup FROM messages m JOIN users u ON u.id = m.user_id LEFT JOIN messages reply ON reply.id = m.reply_to_id AND reply.chat_id = m.chat_id LEFT JOIN users reply_user ON reply_user.id = reply.user_id LEFT JOIN message_invites i ON i.message_id = m.id LEFT JOIN message_events e ON e.message_id = m.id LEFT JOIN message_files f ON f.message_id = m.id LEFT JOIN message_voice v ON v.message_id = m.id LEFT JOIN moderator_messages mm ON mm.message_id = m.id LEFT JOIN bot_message_markup k ON k.message_id = m.id WHERE m.chat_id = ?';
+    $base = 'SELECT m.id, m.user_id, m.body, m.nonce, m.created_at, m.reply_to_id, m.edited_at, SUBSTR(reply.body, 1, 2800) AS reply_body, reply_user.name AS reply_name, u.name, u.username, i.kind AS invite_kind, i.token AS invite_token, i.title AS invite_title, e.kind AS event_kind, e.token AS event_token, f.original_name AS file_name, f.size AS file_size, v.duration AS voice_duration, mm.message_id AS moderator, k.markup_json AS reply_markup FROM messages m JOIN users u ON u.id = m.user_id LEFT JOIN messages reply ON reply.id = m.reply_to_id AND reply.chat_id = m.chat_id LEFT JOIN users reply_user ON reply_user.id = reply.user_id LEFT JOIN message_invites i ON i.message_id = m.id LEFT JOIN message_events e ON e.message_id = m.id LEFT JOIN message_files f ON f.message_id = m.id LEFT JOIN message_voice v ON v.message_id = m.id LEFT JOIN moderator_messages mm ON mm.message_id = m.id LEFT JOIN bot_message_markup k ON k.message_id = m.id WHERE m.chat_id = ?';
     // Choose IDs using byte lengths before loading bodies; never return an unbounded batch of large messages.
     $length = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? 'OCTET_LENGTH(body)' : 'LENGTH(CAST(body AS BLOB))';
     $limit = $after ? 100 : 50;
@@ -50,13 +50,20 @@ function message_page(int $chatId, int $uid, array $data, ?array $calls = null):
     $pollingEdits = $after > 0 || $editAfter > 0;
     $edits = $pollingEdits ? query('SELECT e.id AS event_id, m.id AS message_id, m.body, m.edited_at, k.markup_json AS reply_markup FROM message_edits e JOIN messages m ON m.id = e.message_id LEFT JOIN bot_message_markup k ON k.message_id = m.id WHERE e.chat_id = ? AND e.id > ? ORDER BY e.id LIMIT 1', [$chatId, $editAfter])->fetchAll() : [];
     $editCursor = $edits ? (int)end($edits)['event_id'] : ($pollingEdits ? $editAfter : (int)(one('SELECT MAX(id) AS id FROM message_edits WHERE chat_id = ?', [$chatId])['id'] ?? 0));
+    foreach ($rows as &$row) {
+        $row['body'] = message_read($row['body']);
+        $row['reply_body'] = message_read($row['reply_body'], true);
+    }
+    unset($row);
+    foreach ($edits as &$edit) $edit['body'] = message_read($edit['body']);
+    unset($edit);
     return ['messages' => $rows, 'edited_messages' => $edits, 'edit_cursor' => $editCursor, 'reaction_state' => $reactionState, 'removed_ids' => $removed, 'members' => $people, 'active_call' => $active, 'bot_keyboard' => bot_platform_keyboard($chatId, $uid), 'has_more' => $hasMore];
 }
 function group_call_started(array $room, int $uid): void {
     if (!$room['chat_id'] || !$uid) return;
     $chat = one('SELECT kind FROM chats WHERE id = ?', [$room['chat_id']]);
     if (($chat['kind'] ?? '') !== 'group' || one('SELECT message_id FROM message_events WHERE room_id = ? AND kind = ?', [$room['id'], 'call_started'])) return;
-    query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$room['chat_id'], $uid, 'Звонок начался', 'system_' . bin2hex(random_bytes(20)), stamp()]);
+    query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$room['chat_id'], $uid, message_store('Звонок начался'), 'system_' . bin2hex(random_bytes(20)), stamp()]);
     $id = (int)db()->lastInsertId();
     query('INSERT INTO message_events (message_id, kind, room_id, token) VALUES (?, ?, ?, ?)', [$id, 'call_started', $room['id'], $room['token']]);
     bot_platform_publish_message($id);

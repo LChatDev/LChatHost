@@ -92,7 +92,7 @@ function bot_creator_process(int $chatId, int $senderId, int $messageId, string 
         query('UPDATE chats SET title = title WHERE id = ?', [$chatId]);
         if (one('SELECT message_id FROM bot_creator_handled WHERE message_id = ?', [$messageId])) return;
         $answer = bot_creator_answer($senderId, $body);
-        query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$chatId, $creatorId, $answer, 'botcreator_' . bin2hex(random_bytes(20)), stamp()]);
+        query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$chatId, $creatorId, message_store($answer), 'botcreator_' . bin2hex(random_bytes(20)), stamp()]);
         query('INSERT INTO bot_creator_handled (message_id) VALUES (?)', [$messageId]);
     });
 }

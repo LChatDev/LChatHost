@@ -166,5 +166,7 @@ function moderation_messages(int $chatId, array $data): array {
     $ids = []; $total = 0;
     foreach ($meta as $item) { $size = (int)$item['bytes']; if ($ids && $total + $size > MESSAGE_TEXT_MAX_BYTES) break; $ids[] = (int)$item['id']; $total += $size; }
     $rows = $ids ? query($sql . ' AND m.id IN (' . implode(',', array_fill(0, count($ids), '?')) . ') ORDER BY m.id ASC', array_merge([$chatId], $ids))->fetchAll() : [];
+    foreach ($rows as &$row) $row['body'] = message_read($row['body']);
+    unset($row);
     return ['messages' => $rows, 'has_more' => count($ids) < count($meta) || count($meta) === 100];
 }

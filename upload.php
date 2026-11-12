@@ -38,7 +38,7 @@ try {
         query('UPDATE users SET name = name WHERE id = ?', [$user['id']]);
         $quota = one('SELECT COALESCE(SUM(f.size), 0) AS n FROM message_files f JOIN messages m ON m.id = f.message_id WHERE m.user_id = ?', [$user['id']]);
         if ((int)$quota['n'] + $size > 200 * 1024 * 1024) throw new DomainException('Лимит хранения файлов аккаунта — 200 МБ.');
-        query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$chatId, $user['id'], $body, $nonce, stamp()]);
+        query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$chatId, $user['id'], message_store($body), $nonce, stamp()]);
         $id = (int)db()->lastInsertId();
         query('INSERT INTO message_files (message_id, stored_name, original_name, mime, size) VALUES (?, ?, ?, ?, ?)', [$id, $storedName, $name, $mime, $size]);
         if ($voice) query('INSERT INTO message_voice (message_id,duration) VALUES (?,?)',[$id,$duration]);

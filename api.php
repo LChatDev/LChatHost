@@ -42,11 +42,12 @@ try {
         $latest = one('SELECT MAX(m.id) AS id FROM messages m JOIN members mem ON mem.chat_id = m.chat_id WHERE mem.user_id = ?', [$user['id']]);
         $cursor = (int)($latest['id'] ?? 0); $items = [];
         if (array_key_exists('after', $data)) {
-            $rows = query('SELECT m.id, m.chat_id, m.user_id, SUBSTR(m.body, 1, 500) AS body, m.created_at, u.name, c.title, c.kind, mem.last_read, e.kind AS event_kind FROM messages m JOIN members mem ON mem.chat_id = m.chat_id JOIN chats c ON c.id = m.chat_id JOIN users u ON u.id = m.user_id LEFT JOIN message_events e ON e.message_id = m.id WHERE mem.user_id = ? AND m.id > ? ORDER BY m.id LIMIT 100', [$user['id'], $after])->fetchAll();
+            $rows = query('SELECT m.id, m.chat_id, m.user_id, SUBSTR(m.body, 1, 2800) AS body, m.created_at, u.name, c.title, c.kind, mem.last_read, e.kind AS event_kind FROM messages m JOIN members mem ON mem.chat_id = m.chat_id JOIN chats c ON c.id = m.chat_id JOIN users u ON u.id = m.user_id LEFT JOIN message_events e ON e.message_id = m.id WHERE mem.user_id = ? AND m.id > ? ORDER BY m.id LIMIT 100', [$user['id'], $after])->fetchAll();
             $cursor = $after;
             foreach ($rows as $row) {
                 $cursor = max($cursor, (int)$row['id']);
                 if ((int)$row['user_id'] !== (int)$user['id'] && (int)$row['id'] > (int)$row['last_read'] && !$row['event_kind'] && $row['created_at'] >= stamp(-86400)) {
+                    $row['body'] = message_read($row['body'], true);
                     unset($row['last_read'], $row['event_kind']); $items[] = $row;
                 }
             }
@@ -210,12 +211,13 @@ try {
     if ($action === 'chats' || $action === 'sync') {
         query('UPDATE users SET last_seen = ? WHERE id = ? AND last_seen < ?', [stamp(), $uid, stamp(-15)]);
         $chats = query("SELECT c.id, c.kind, c.title, c.owner_id, c.invite_token, c.created_at, m.role, (SELECT slug FROM channel_details WHERE chat_id=c.id) AS channel_slug,
-            SUBSTR(latest.body, 1, 500) AS last_message, latest.created_at AS last_message_at, latest.id AS last_message_id, latest.user_id AS last_message_user_id,
+            SUBSTR(latest.body, 1, 2800) AS last_message, latest.created_at AS last_message_at, latest.id AS last_message_id, latest.user_id AS last_message_user_id,
             (SELECT id FROM messages WHERE chat_id = c.id AND user_id <> ? ORDER BY id DESC LIMIT 1) AS last_incoming_id,
             (SELECT COUNT(*) FROM messages WHERE chat_id = c.id AND id > m.last_read AND user_id <> ?) AS unread,
             (SELECT COUNT(*) FROM members WHERE chat_id = c.id) AS member_count
             FROM chats c JOIN members m ON m.chat_id = c.id LEFT JOIN messages latest ON latest.id = (SELECT MAX(id) FROM messages WHERE chat_id = c.id) WHERE m.user_id = ? ORDER BY COALESCE(latest.created_at, c.created_at) DESC, c.id DESC", [$uid, $uid, $uid])->fetchAll();
         foreach ($chats as &$c) {
+            $c['last_message'] = message_read($c['last_message'], true);
             if ($c['kind'] === 'direct') {
                 $p = one('SELECT u.id, u.name, u.username, u.last_seen FROM users u JOIN members m ON m.user_id = u.id WHERE m.chat_id = ? AND u.id <> ?', [$c['id'], $uid]);
                 $c['title'] = $p['name']; $c['peer'] = user_call_flags([$p])[0];
@@ -332,12 +334,12 @@ try {
         if (!$message) fail(404, 'Сообщение не найдено.');
         if ((int)$message['user_id'] !== $uid) fail(403, 'Можно редактировать только свои сообщения.');
         if ($message['file_id'] || $message['invite_id'] || $message['event_id']) fail(422, 'Этот тип сообщения нельзя редактировать.');
-        if ($message['body'] !== $body) transaction(function () use ($id, $chatId, $body): void {
+        if (message_read($message['body']) !== $body) transaction(function () use ($id, $chatId, $body): void {
             $at = stamp();
-            query('UPDATE messages SET body = ?, edited_at = ? WHERE id = ? AND chat_id = ?', [$body, $at, $id, $chatId]);
+            query('UPDATE messages SET body = ?, edited_at = ? WHERE id = ? AND chat_id = ?', [message_store($body), $at, $id, $chatId]);
             query('INSERT INTO message_edits (chat_id, message_id, edited_at) VALUES (?, ?, ?)', [$chatId, $id, $at]);
         });
-        result(['id' => $id, 'body' => $body, 'edited_at' => $message['body'] === $body ? $message['edited_at'] : stamp()]);
+        result(['id' => $id, 'body' => $body, 'edited_at' => message_read($message['body']) === $body ? $message['edited_at'] : stamp()]);
     }
     if ($action === 'message.react') {
         rate('message-react:' . $uid, 120, 60);
@@ -381,7 +383,7 @@ try {
         if (!preg_match('/^[a-zA-Z0-9_-]+$/D', $nonce)) fail(422, 'Некорректный идентификатор сообщения.');
         $replyTo = max(0, (int)($data['reply_to_id'] ?? 0));
         if ($replyTo && !one('SELECT id FROM messages WHERE id = ? AND chat_id = ?', [$replyTo, $chatId])) fail(404, 'Сообщение для ответа не найдено.');
-        try { query('INSERT INTO messages (chat_id, user_id, body, nonce, reply_to_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$chatId, $uid, $body, $nonce, $replyTo ?: null, stamp()]); }
+        try { query('INSERT INTO messages (chat_id, user_id, body, nonce, reply_to_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [$chatId, $uid, message_store($body), $nonce, $replyTo ?: null, stamp()]); }
         catch (PDOException $e) { if (!str_starts_with((string)$e->getCode(), '23')) throw $e; }
         $m = one('SELECT id, chat_id FROM messages WHERE user_id = ? AND nonce = ?', [$uid, $nonce]);
         if ((int)$m['chat_id'] !== $chatId) fail(409, 'Идентификатор сообщения уже использован.');

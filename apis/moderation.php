@@ -60,7 +60,7 @@ function moderation_action(string $action, array $data, array $user): void {
             admin_lock((int)$user['id']);
             $existing = one('SELECT id, chat_id FROM messages WHERE user_id = ? AND nonce = ?', [$user['id'], $nonce]);
             if ($existing) { if ((int)$existing['chat_id'] !== $chatId) throw new DomainException('Идентификатор уже использован.'); return (int)$existing['id']; }
-            query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$chatId, $user['id'], $body, $nonce, stamp()]);
+            query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$chatId, $user['id'], message_store($body), $nonce, stamp()]);
             $messageId = (int)db()->lastInsertId();
             query('INSERT INTO moderator_messages (message_id) VALUES (?)', [$messageId]);
             admin_audit((int)$user['id'], 'chat.send', (string)$chatId);

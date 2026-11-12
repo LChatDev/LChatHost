@@ -18,8 +18,8 @@ function bot_platform_message(int $messageId): ?array {
         elseif ($kind === 'voice') $result['voice'] = $file + ['duration' => (int)($row['voice_duration'] ?? 0), 'mime_type' => $row['file_mime']];
         elseif (in_array($kind, ['audio', 'video', 'animation'], true)) $result[$kind] = $file + ['file_name' => $row['file_name'], 'mime_type' => $row['file_mime']];
         else $result['document'] = $file + ['file_name' => $row['file_name'], 'mime_type' => $row['file_mime']];
-        $result['caption'] = $row['body'];
-    } else $result['text'] = $row['body'];
+        $result['caption'] = message_read($row['body']);
+    } else $result['text'] = message_read($row['body']);
     if ($row['markup_json'] !== null) $result['reply_markup'] = json_decode($row['markup_json'], true);
     return $result;
 }
@@ -104,7 +104,7 @@ function bot_platform_push(int $botId, string $key, array $update): void {
         $id = (int)(one('SELECT value FROM settings WHERE name = ?', ['bot_update_seq'])['value'] ?? 0);
         if ($id < 1) throw new RuntimeException('Bot update sequence is unavailable.');
         $update['update_id'] = $id;
-        query('INSERT INTO bot_updates (id, bot_user_id, event_key, payload, created_at, next_attempt_at) VALUES (?, ?, ?, ?, ?, ?)', [$id, $botId, $key, json_encode($update, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR), stamp(), stamp()]);
+        query('INSERT INTO bot_updates (id, bot_user_id, event_key, payload, created_at, next_attempt_at) VALUES (?, ?, ?, ?, ?, ?)', [$id, $botId, $key, message_store(json_encode($update, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR)), stamp(), stamp()]);
     };
     if (db()->inTransaction()) $push(); else transaction($push);
     if (one('SELECT bot_user_id FROM bot_webhooks WHERE bot_user_id = ?', [$botId])) bot_platform_schedule_dispatch();
@@ -173,7 +173,7 @@ function bot_platform_dispatch_pending(int $limit = 20): int {
             if ($curl === false) throw new RuntimeException('Cannot initialize cURL.');
             $headers = ['Content-Type: application/json'];
             if ($row['secret_token'] !== '') $headers[] = 'X-Telegram-Bot-Api-Secret-Token: ' . $row['secret_token'];
-            curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $row['payload'], CURLOPT_HTTPHEADER => $headers, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 2, CURLOPT_TIMEOUT => 4, CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROXY => '', CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_RESOLVE => [$host . ':' . $port . ':' . $ip]]);
+            curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => message_read($row['payload']), CURLOPT_HTTPHEADER => $headers, CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 2, CURLOPT_TIMEOUT => 4, CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROXY => '', CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_RESOLVE => [$host . ':' . $port . ':' . $ip]]);
             if (defined('CURLOPT_PROTOCOLS_STR')) curl_setopt($curl, CURLOPT_PROTOCOLS_STR, 'https');
             else curl_setopt($curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS);
             $response = curl_exec($curl);

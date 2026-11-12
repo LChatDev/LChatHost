@@ -34,7 +34,7 @@ function send_invites(int $uid, array $ctx, array $data): array {
                 $sent[] = $existing['id']; continue;
             }
             $body = ($kind === 'group' ? 'Приглашение в группу: ' : 'Приглашение в звонок: ') . $title;
-            query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$list[$id]['chat_id'], $uid, $body, $key, stamp()]);
+            query('INSERT INTO messages (chat_id, user_id, body, nonce, created_at) VALUES (?, ?, ?, ?, ?)', [$list[$id]['chat_id'], $uid, message_store($body), $key, stamp()]);
             $messageId = (int)db()->lastInsertId();
             query('INSERT INTO message_invites (message_id, kind, token, title) VALUES (?, ?, ?, ?)', [$messageId, $kind, $token, $title]);
             $sent[] = $messageId;

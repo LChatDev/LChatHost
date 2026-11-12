@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 if (!defined('LCHAT_INTERNAL')) { http_response_code(404); exit; }
+require_once __DIR__ . '/apis/message-crypto.php';
 
 date_default_timezone_set('UTC');
 ini_set('display_errors', '0');
