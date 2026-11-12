@@ -33,3 +33,7 @@ The example configuration points to the project owner’s TURN server at `turn:2
 ## Interface update, 11 November 2026
 
 For the glass appearance, smoother animations and relative last-seen status, update the website files from [LChatWeb](https://github.com/LChatDev/LChatWeb): `index.php`, `assets/app.js`, `assets/user-profile.js` (if present), `assets/glass-presence.css`. Refresh the browser afterward. This interface update does not require backend changes.
+
+## Verify registration and login
+
+Open the website in a private window and register a test account. If email verification is enabled, confirm the address from the email before signing in. Reload the page to check that the session persists.
