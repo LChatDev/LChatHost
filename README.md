@@ -27,3 +27,6 @@ Backend for requests, sessions, messages, files and call signaling. Pages and as
 ## Панель для Windows и Linux / Windows and Linux panel
 
 [Скачать / Download](https://github.com/LChatDev/LChatHost/releases/tag/host-panel-v1.0.0) · [Русский](launcher/README_RU.md) · [English](launcher/README_EN.md)
+
+
+[Codex skill / ИИ-скилл](.agents/skills/lchat-maintainer/SKILL.md). Open the repository in Codex and invoke `$lchat-maintainer`.
