@@ -34,10 +34,14 @@ function bot_boolean(mixed $value): bool {
     return in_array(strtolower((string)$value), ['1', 'true', 'yes', 'on'], true);
 }
 function bot_chat(int $chatId, int $botId): array {
-    $chat = one('SELECT c.id, c.kind, c.title, m.role FROM chats c JOIN members m ON m.chat_id = c.id WHERE c.id = ? AND m.user_id = ?', [$chatId, $botId]);
+    $chat = one('SELECT c.id, c.kind, c.title, m.role, m.joined_at FROM chats c JOIN members m ON m.chat_id = c.id WHERE c.id = ? AND m.user_id = ?', [$chatId, $botId]);
     if (!$chat) bot_error(403, 'Бот не состоит в этом чате.');
     return $chat;
 }
+function bot_chat_info(array $chat): array {
+    return ['id' => (int)$chat['id'], 'type' => $chat['kind'] === 'direct' ? 'private' : $chat['kind'], 'title' => $chat['title']];
+}
+
 function bot_message(array $message): array {
     return [
         'message_id' => (int)$message['id'],
@@ -72,7 +76,7 @@ try {
     if (!$bot || service_ban($botId) || service_ban((int)$bot['owner_user_id'])) bot_error(401, 'Неверный токен бота.');
     bot_limit($botId, 180, 60);
     $method = (string)($_GET['method'] ?? '');
-    $readMethods = ['getMe', 'getUpdates', 'getChat', 'getWebhookInfo', 'getFile'];
+    $readMethods = ['getMe', 'getUpdates', 'getChat', 'getChats', 'getChatMemberCount', 'getChatMember', 'getMessage', 'getWebhookInfo', 'getFile'];
     if (in_array($method, $readMethods, true)) {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') bot_error(405, 'Используйте GET.');
         $data = $_GET;
@@ -146,9 +150,68 @@ try {
         if ($changed->rowCount() !== 1) bot_error(404, 'Нажатие не найдено или уже обработано.');
         bot_result(true);
     }
+
+    if ($method === 'getChats') {
+        $after = bot_number($data['after'] ?? 0, 'after', 0);
+        $limit = min(100, bot_number($data['limit'] ?? 50, 'limit'));
+        $rows = query('SELECT c.id, c.kind, c.title FROM members m JOIN chats c ON c.id = m.chat_id WHERE m.user_id = ? AND c.id > ? ORDER BY c.id LIMIT ' . $limit, [$botId, $after])->fetchAll();
+        bot_result(array_map('bot_chat_info', $rows));
+    }
+
     $chatId = bot_number($data['chat_id'] ?? null, 'chat_id');
     $chat = bot_chat($chatId, $botId);
-    if ($method === 'getChat') bot_result(['id' => $chatId, 'type' => $chat['kind'] === 'direct' ? 'private' : $chat['kind'], 'title' => $chat['title']]);
+    if ($method === 'getChat') bot_result(bot_chat_info($chat));
+    if ($method === 'getChatMemberCount') {
+        $count = one('SELECT COUNT(*) AS total FROM members WHERE chat_id = ?', [$chatId]);
+        bot_result((int)$count['total']);
+    }
+    if ($method === 'getChatMember') {
+        $userId = bot_number($data['user_id'] ?? null, 'user_id');
+        $member = one('SELECT u.id, u.name, u.username, m.role, CASE WHEN b.bot_user_id IS NULL AND s.user_id IS NULL THEN 0 ELSE 1 END AS is_bot FROM members m JOIN users u ON u.id = m.user_id LEFT JOIN bot_accounts b ON b.bot_user_id = u.id LEFT JOIN system_bots s ON s.user_id = u.id WHERE m.chat_id = ? AND m.user_id = ?', [$chatId, $userId]);
+        if (!$member) bot_error(404, 'Участник не найден.');
+        $status = match ($member['role']) {
+            'owner' => 'creator',
+            'admin' => 'administrator',
+            default => 'member',
+        };
+        bot_result(['status' => $status, 'user' => [
+            'id' => (int)$member['id'], 'first_name' => $member['name'],
+            'username' => $member['username'], 'is_bot' => (bool)$member['is_bot'],
+        ]]);
+    }
+    if (in_array($method, ['getMessage', 'setMessageReaction', 'editMessageCaption'], true)) {
+        $messageId = bot_number($data['message_id'] ?? null, 'message_id');
+        $message = one('SELECT id, user_id FROM messages WHERE id = ? AND chat_id = ? AND created_at >= ?', [$messageId, $chatId, $chat['joined_at']]);
+        if (!$message) bot_error(404, 'Сообщение недоступно боту.');
+        if ($method === 'getMessage') bot_result(bot_message_by_id($messageId));
+        if ($method === 'setMessageReaction') {
+            if (!array_key_exists('emoji', $data)) bot_error(400, 'Укажите emoji. Для удаления передайте null.');
+            $emoji = $data['emoji'];
+            if ($emoji === null || $emoji === '') {
+                query('DELETE FROM message_reactions WHERE message_id = ? AND user_id = ?', [$messageId, $botId]);
+                bot_result(true);
+            }
+            if (!in_array($emoji, ['👍', '❤️', '😂', '😮', '😢', '👏'], true)) bot_error(400, 'Выберите реакцию из списка.');
+            $upsert = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql'
+                ? ' ON DUPLICATE KEY UPDATE emoji = VALUES(emoji), created_at = VALUES(created_at)'
+                : ' ON CONFLICT (message_id, user_id) DO UPDATE SET emoji = excluded.emoji, created_at = excluded.created_at';
+            query('INSERT INTO message_reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)' . $upsert, [$messageId, $botId, $emoji, stamp()]);
+            bot_result(true);
+        }
+        if ((int)$message['user_id'] !== $botId || !one('SELECT message_id FROM message_files WHERE message_id = ?', [$messageId])) {
+            bot_error(404, 'Медиа-сообщение бота не найдено.');
+        }
+        $caption = $data['caption'] ?? '';
+        if (!is_string($caption) || !mb_check_encoding($caption, 'UTF-8') || mb_strlen($caption, 'UTF-8') > 1024 || preg_match('/[ --]/', $caption)) {
+            bot_error(400, 'Подпись должна быть в UTF-8 и не длиннее 1024 символов.');
+        }
+        transaction(static function () use ($chatId, $messageId, $botId, $caption): void {
+            $at = stamp();
+            query('UPDATE messages SET body = ?, edited_at = ? WHERE id = ? AND chat_id = ? AND user_id = ?', [message_store(trim($caption)), $at, $messageId, $chatId, $botId]);
+            query('INSERT INTO message_edits (chat_id, message_id, edited_at) SELECT chat_id, id, ? FROM messages WHERE id = ? AND chat_id = ? AND user_id = ?', [$at, $messageId, $chatId, $botId]);
+        });
+        bot_result(bot_message_by_id($messageId));
+    }
     if ($method === 'sendMessage') {
         if ($chat['kind'] === 'channel' && $chat['role'] !== 'admin') bot_error(403, 'Боту нельзя публиковать в этом канале.');
         bot_limit($botId, 90, 60);
