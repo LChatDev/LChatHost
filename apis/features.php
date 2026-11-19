@@ -2,17 +2,6 @@
 declare(strict_types=1);
 if (!defined('LCHAT_INTERNAL')) { http_response_code(404); exit; }
 
-function upgrade_message_columns(PDO $pdo): void {
-    if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql') return;
-    foreach ([['messages', 'body', 'MEDIUMTEXT'], ['bot_updates', 'payload', 'LONGTEXT']] as [$table, $column, $target]) {
-        $info = $pdo->query("SHOW FULL COLUMNS FROM `$table` LIKE '$column'")->fetch(PDO::FETCH_ASSOC);
-        if (!$info || $info['Null'] !== 'NO' || !preg_match('/^utf8mb4_[a-z0-9_]+$/iD', (string)$info['Collation'])) throw new RuntimeException('Unexpected message storage schema.');
-        $type = strtolower((string)$info['Type']);
-        if (!in_array($type, ['tinytext', 'text', 'mediumtext', 'longtext'], true)) throw new RuntimeException('Unexpected message storage type.');
-        $widen = $target === 'MEDIUMTEXT' ? in_array($type, ['tinytext', 'text'], true) : $type !== 'longtext';
-        if ($widen) $pdo->exec("ALTER TABLE `$table` MODIFY `$column` $target CHARACTER SET utf8mb4 COLLATE " . $info['Collation'] . ' NOT NULL');
-    }
-}
 function ensure_features(): void {
     static $ready = false;
     if ($ready) return;
@@ -120,11 +109,29 @@ function ensure_features(): void {
         query('UPDATE settings SET value = ? WHERE name = ?', ['16', 'schema_version']);
     }
     if ((int)$version['value'] < 17) {
-        upgrade_message_columns(db());
+        $suffix = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+        db()->exec('CREATE TABLE IF NOT EXISTS site_permissions (user_id INTEGER NOT NULL, requested_by_bot INTEGER NOT NULL, status VARCHAR(16) NOT NULL, requested_at DATETIME NOT NULL, decided_at DATETIME NULL, PRIMARY KEY(user_id, requested_by_bot), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY(requested_by_bot) REFERENCES users(id) ON DELETE CASCADE)' . $suffix);
+        db()->exec('CREATE TABLE IF NOT EXISTS service_bot_handled (message_id INTEGER PRIMARY KEY, FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE)' . $suffix);
+        db()->exec('CREATE TABLE IF NOT EXISTS user_sites (user_id INTEGER PRIMARY KEY, slug VARCHAR(32) NOT NULL UNIQUE, name VARCHAR(80) NOT NULL, created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE)' . $suffix);
         query('UPDATE settings SET value = ? WHERE name = ?', ['17', 'schema_version']);
+    }
+    if ((int)$version['value'] < 18) {
+        $suffix = db()->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' : '';
+        db()->exec('CREATE TABLE IF NOT EXISTS ai_bot_handled (message_id INTEGER PRIMARY KEY, FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE)' . $suffix);
+        query('UPDATE settings SET value = ? WHERE name = ?', ['18', 'schema_version']);
+    }
+    if ((int)$version['value'] < 19) {
+        rewards_install();
+        query('UPDATE settings SET value = ? WHERE name = ?', ['19', 'schema_version']);
+    }
+    if ((int)$version['value'] < 20) {
+        rewards_install();
+        query('UPDATE settings SET value = ? WHERE name = ?', ['20', 'schema_version']);
     }
     try { bot_creator_install(); }
     catch (Throwable $e) { error_log('LChat BotCreator provision: ' . get_class($e) . ' ' . $e->getMessage()); }
+    try { service_bot_install(); }
+    catch (Throwable $e) { error_log('LChat service bot provision: ' . get_class($e) . ' ' . $e->getMessage()); }
     $ready = true;
 }
 function channel_slug(array $data): string {

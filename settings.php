@@ -11,7 +11,7 @@ try {
     $uid = (int)$user['id'];
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $prefs = one('SELECT bio, theme, accent, compact FROM user_preferences WHERE user_id = ?', [$uid]);
-        result(['profile' => ['id' => $uid, 'username' => $user['username'], 'name' => $user['name']], 'settings' => $prefs ?: ['bio' => '', 'theme' => 'dark', 'accent' => 0, 'compact' => 0]]);
+        result(['profile' => ['id' => $uid, 'username' => $user['username'], 'name' => $user['name']], 'settings' => $prefs ?: ['bio' => '', 'theme' => 'dark', 'accent' => 0, 'compact' => 0], 'site' => user_site_info($uid), 'site_permission' => user_site_permission($uid), 'csrf' => $ctx['csrf']]);
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'Используйте GET или POST.');
     if (!hash_equals($ctx['csrf'], $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) fail(403, 'Обновите страницу и повторите действие.');

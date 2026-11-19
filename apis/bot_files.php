@@ -15,10 +15,10 @@ function bot_file_allowed(string $mime, string $kind): bool {
 function bot_file_source(int $botId, string $field, array $data, string $kind): array {
     $upload = $_FILES[$field] ?? null;
     if ($upload) {
-        if (($upload['error'] ?? null) !== UPLOAD_ERR_OK || !is_string($upload['tmp_name'] ?? null) || !is_uploaded_file($upload['tmp_name'])) throw new DomainException('Не удалось загрузить файл. Максимум — 8 МБ.');
+        if (($upload['error'] ?? null) !== UPLOAD_ERR_OK || !is_string($upload['tmp_name'] ?? null) || !is_uploaded_file($upload['tmp_name'])) throw new DomainException('Не удалось загрузить файл. Максимум — 200 МБ.');
         $source = $upload['tmp_name'];
         $size = filesize($source);
-        if ($size === false || $size < 1 || $size > 8 * 1024 * 1024) throw new DomainException('Файл должен быть от 1 байта до 8 МБ.');
+        if ($size === false || $size < 1 || $size > 200 * 1024 * 1024) throw new DomainException('Файл должен быть от 1 байта до 200 МБ.');
         if (!extension_loaded('fileinfo')) throw new RuntimeException('Для файлов требуется расширение fileinfo.');
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($source);
         if (!is_string($mime) || !bot_file_allowed($mime, $kind)) throw new DomainException('Этот формат файла не поддерживается.');
@@ -31,7 +31,7 @@ function bot_file_source(int $botId, string $field, array $data, string $kind): 
     if (!$file || $file['created_at'] < $file['joined_at']) throw new DomainException('Файл недоступен этому боту.');
     if (!bot_file_allowed($file['mime'], $kind)) throw new DomainException('Тип файла не подходит для этого метода.');
     if (!preg_match('/^[a-f0-9]{48}\.bin$/D', $file['stored_name'])) throw new DomainException('Файл недоступен.');
-    $source = dirname(__DIR__) . '/files/' . $file['stored_name'];
+    $source = lchat_file_path($file['stored_name']);
     if (!is_file($source)) throw new DomainException('Файл больше недоступен.');
     return [$source, $file['original_name'], $file['mime'], (int)$file['size'], false];
 }
@@ -46,7 +46,7 @@ function bot_file_send(int $botId, int $chatId, string $kind, array $data, ?stri
     $reply = isset($data['reply_to_message_id']) ? (int)$data['reply_to_message_id'] : null;
     if ($reply && !one('SELECT id FROM messages WHERE id = ? AND chat_id = ?', [$reply, $chatId])) throw new DomainException('Сообщение для ответа не найдено.');
     $duration = $kind === 'voice' ? max(1, min(180, (int)($data['duration'] ?? 1))) : 0;
-    $dir = dirname(__DIR__) . '/files';
+    $dir = rtrim(lchat_file_path('', true), '/');
     if (!is_dir($dir) || !is_writable($dir)) throw new RuntimeException('Папка files недоступна для записи.');
     $storedName = bin2hex(random_bytes(24)) . '.bin';
     $path = $dir . '/' . $storedName;

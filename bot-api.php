@@ -2,6 +2,7 @@
 declare(strict_types=1);
 define('LCHAT_INTERNAL', true);
 require __DIR__ . '/app.php';
+require_once __DIR__ . '/apis/bots/pages/lib.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('Referrer-Policy: no-referrer');
@@ -65,6 +66,11 @@ function bot_limit(int $botId, int $maximum, int $seconds): void {
     $row = one('SELECT hits FROM rate_limits WHERE bucket = ?', [$key]);
     if ((int)$row['hits'] > $maximum) { header('Retry-After: ' . $seconds); bot_error(429, 'Слишком много запросов.'); }
 }
+function bot_site_user(int $botId, int $userId): array {
+    $user=one('SELECT id,username FROM users WHERE id=? AND id<>?',[$userId,$botId]);
+    if(!$user||!one('SELECT m1.chat_id FROM members m1 JOIN members m2 ON m2.chat_id=m1.chat_id WHERE m1.user_id=? AND m2.user_id=? LIMIT 1',[$botId,$userId]))bot_error(403,'Пользователь не взаимодействовал с этим ботом.');
+    return $user;
+}
 
 try {
     ensure_features();
@@ -76,14 +82,14 @@ try {
     if (!$bot || service_ban($botId) || service_ban((int)$bot['owner_user_id'])) bot_error(401, 'Неверный токен бота.');
     bot_limit($botId, 180, 60);
     $method = (string)($_GET['method'] ?? '');
-    $readMethods = ['getMe', 'getUpdates', 'getChat', 'getChats', 'getChatMemberCount', 'getChatMember', 'getMessage', 'getWebhookInfo', 'getFile'];
+    $readMethods = ['getMe', 'getUpdates', 'getChat', 'getChats', 'getChatMemberCount', 'getChatMember', 'getMessage', 'getWebhookInfo', 'getFile', 'getTemporarySites', 'getSitePermission'];
     if (in_array($method, $readMethods, true)) {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') bot_error(405, 'Используйте GET.');
         $data = $_GET;
     } else {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') bot_error(405, 'Используйте POST.');
         $multipart = str_contains(strtolower((string)($_SERVER['CONTENT_TYPE'] ?? '')), 'multipart/form-data');
-        $maxBytes = $multipart ? 10 * 1024 * 1024 : (in_array($method, ['sendMessage', 'editMessageText'], true) ? MESSAGE_REQUEST_MAX_BYTES : 65536);
+        $maxBytes = $multipart ? 10 * 1024 * 1024 : (in_array($method,['createTemporarySite','publishPermanentSite'],true) ? 1200000 : (in_array($method, ['sendMessage', 'editMessageText'], true) ? MESSAGE_REQUEST_MAX_BYTES : 65536));
         if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBytes) bot_error(413, 'Слишком большой запрос.');
         if ($multipart) $data = $_POST;
         else {
@@ -149,6 +155,40 @@ try {
         $changed = query('UPDATE bot_callback_queries SET answer_text = ?, answered_at = ? WHERE id = ? AND bot_user_id = ? AND answered_at IS NULL', [$answer, stamp(), $id, $botId]);
         if ($changed->rowCount() !== 1) bot_error(404, 'Нажатие не найдено или уже обработано.');
         bot_result(true);
+    }
+    if ($method === 'getTemporarySites') {
+        $ownerRef = bot_number($data['owner_user_id'] ?? null, 'owner_user_id');
+        bot_result(temp_site_list($botId, $ownerRef, (string)(config()['public_url'] ?? 'https://chat.lbs.su/')));
+    }
+    if ($method === 'createTemporarySite') {
+        $ownerRef = bot_number($data['owner_user_id'] ?? null, 'owner_user_id');
+        $name = is_string($data['name'] ?? null) ? $data['name'] : '';
+        $files = $data['files'] ?? null;
+        if (!is_array($files)) bot_error(400, 'Передайте объект files: путь → содержимое.');
+        try { bot_result(temp_site_create($botId, $ownerRef, $name, $files, (string)(config()['public_url'] ?? 'https://chat.lbs.su/'))); }
+        catch (DomainException $e) { bot_error(400, $e->getMessage()); }
+    }
+    if ($method === 'deleteTemporarySite') {
+        $ownerRef = bot_number($data['owner_user_id'] ?? null, 'owner_user_id');
+        $siteId = strtolower(trim((string)($data['site_id'] ?? '')));
+        $meta = temp_site_get($siteId);
+        if (!$meta || (int)($meta['bot_id'] ?? 0) !== $botId || (int)($meta['owner_ref'] ?? 0) !== $ownerRef) bot_error(404, 'Временный сайт не найден.');
+        temp_site_remove($siteId);
+        bot_result(true);
+    }
+    if ($method === 'getSitePermission') {
+        $ownerRef=bot_number($data['owner_user_id']??null,'owner_user_id');bot_site_user($botId,$ownerRef);
+        bot_result(['status'=>user_site_permission($ownerRef,$botId),'site'=>user_site_info($ownerRef)]);
+    }
+    if ($method === 'requestSitePermission') {
+        $ownerRef=bot_number($data['owner_user_id']??null,'owner_user_id');bot_site_user($botId,$ownerRef);
+        bot_result(service_site_permission_request($ownerRef,$botId));
+    }
+    if ($method === 'publishPermanentSite') {
+        $ownerRef=bot_number($data['owner_user_id']??null,'owner_user_id');bot_site_user($botId,$ownerRef);
+        if(user_site_permission($ownerRef,$botId)!=='approved')bot_error(403,'Пользователь ещё не разрешил этому боту создавать постоянный сайт.');
+        if(!is_array($data['files']??null))bot_error(400,'Передайте объект files: путь → содержимое.');
+        try{bot_result(user_site_publish($ownerRef,(string)($data['name']??''),$data['files']));}catch(DomainException $e){bot_error(400,$e->getMessage());}
     }
 
     if ($method === 'getChats') {
@@ -267,9 +307,9 @@ try {
     if ($method === 'deleteMessage') {
         $messageId = bot_number($data['message_id'] ?? null, 'message_id');
         $file = one('SELECT f.stored_name FROM message_files f JOIN messages m ON m.id = f.message_id WHERE m.id = ? AND m.chat_id = ? AND m.user_id = ?', [$messageId, $chatId, $botId]);
-        $deleted = query('DELETE FROM messages WHERE id = ? AND chat_id = ? AND user_id = ?', [$messageId, $chatId, $botId]);
-        if ($deleted->rowCount() !== 1) bot_error(404, 'Сообщение бота не найдено.');
-        if ($file && preg_match('/^[a-f0-9]{48}\.bin$/D', $file['stored_name'])) { $path = __DIR__ . '/files/' . $file['stored_name']; if (is_file($path)) unlink($path); }
+        $deleted = delete_message_row($messageId, $chatId, $botId);
+        if ($deleted !== 1) bot_error(404, 'Сообщение бота не найдено.');
+        if ($file && preg_match('/^[a-f0-9]{48}\.bin$/D', $file['stored_name'])) { $path = lchat_file_path($file['stored_name']); if (is_file($path)) unlink($path); }
         bot_result(true);
     }
     bot_error(404, 'Метод Bot API не найден.');

@@ -12,7 +12,8 @@ try {
     $uid = (int)$owner['id'];
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $bots = query('SELECT b.bot_user_id AS id, u.username, u.name, b.created_at FROM bot_accounts b JOIN users u ON u.id = b.bot_user_id WHERE b.owner_user_id = ? ORDER BY b.bot_user_id DESC', [$uid])->fetchAll();
-        result(['bots' => $bots, 'creator_id' => bot_creator_id()]);
+        $aiBot = one('SELECT id FROM users WHERE LOWER(username) = ?', ['aibot']);
+        result(['bots' => $bots, 'creator_id' => bot_creator_id(), 'aibot_id' => (int)($aiBot['id'] ?? 0)]);
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'Используйте GET или POST.');
     if (!hash_equals($ctx['csrf'], $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) fail(403, 'Обновите страницу и повторите действие.');
@@ -22,11 +23,13 @@ try {
     $data = json_decode($raw, true);
     if (!is_array($data)) fail(400, 'Ожидается JSON.');
     $action = (string)($data['action'] ?? '');
-    if ($action === 'create') {
+    if ($action === 'create' || $action === 'create-ai') {
         rate('bot-create:' . $uid, 10, 86400);
         $name = field($data, 'name', 2, 60);
         $username = strtolower(field($data, 'username', 6, 32));
-        result(bot_account_create($uid, $name, $username));
+        $created = bot_account_create($uid, $name, $username);
+        if ($action === 'create-ai') $created += ['ai' => true, 'model' => 'kilo-auto/free', 'template_url' => 'https://chat.lbs.su/examples/kilo-ai-bot.py'];
+        result($created);
     }
     $botId = (int)($data['bot_id'] ?? 0);
     $bot = $botId > 0 ? one('SELECT bot_user_id FROM bot_accounts WHERE bot_user_id = ? AND owner_user_id = ?', [$botId, $uid]) : null;

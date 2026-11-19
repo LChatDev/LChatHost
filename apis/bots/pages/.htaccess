@@ -1,0 +1,8 @@
+Options -Indexes
+Require all granted
+RewriteEngine On
+RewriteRule ^temps/sites/([a-z0-9]{30})(?:/(.*))?$ render.php?site=$1&path=$2 [QSA,L]
+
+<FilesMatch "^(lib\.php|\.htaccess)$">
+  Require all denied
+</FilesMatch>

@@ -9,8 +9,8 @@ try {
     if (!$user) fail(404, 'Пользователь не найден.');
     $photo = one('SELECT stored_name FROM user_avatars WHERE user_id = ?', [$id]);
     header('X-Content-Type-Options: nosniff'); header('Cache-Control: private, max-age=60');
-    if ($photo && preg_match('/^[a-f0-9]{48}\.png$/D', $photo['stored_name']) && is_file(__DIR__ . '/files/' . $photo['stored_name'])) {
-        header('Content-Type: image/png'); readfile(__DIR__ . '/files/' . $photo['stored_name']);
+    if ($photo && preg_match('/^[a-f0-9]{48}\.png$/D', $photo['stored_name']) && is_file(lchat_file_path($photo['stored_name']))) {
+        header('Content-Type: image/png'); readfile(lchat_file_path($photo['stored_name']));
     } else {
         header('Content-Type: image/svg+xml'); header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox");
 

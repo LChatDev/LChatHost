@@ -18,7 +18,7 @@ try {
     if ($fileId === false || $fileId === null) fail(400, 'Укажите file_id.');
     $file = one('SELECT f.*, m.created_at, mem.joined_at FROM message_files f JOIN messages m ON m.id = f.message_id JOIN members mem ON mem.chat_id = m.chat_id AND mem.user_id = ? WHERE f.message_id = ?', [$botId, $fileId]);
     if (!$file || $file['created_at'] < $file['joined_at'] || !preg_match('/^[a-f0-9]{48}\.bin$/D', $file['stored_name'])) fail(404, 'Файл недоступен боту.');
-    $path = __DIR__ . '/files/' . $file['stored_name'];
+    $path = lchat_file_path($file['stored_name']);
     if (!is_file($path)) fail(404, 'Файл больше недоступен.');
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="download"; filename*=UTF-8\'\'' . rawurlencode($file['original_name']));

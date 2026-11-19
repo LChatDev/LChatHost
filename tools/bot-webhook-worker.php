@@ -5,7 +5,7 @@ define('LCHAT_INTERNAL', true);
 require dirname(__DIR__) . '/app.php';
 try {
     ensure_features();
-    if (!extension_loaded('curl')) throw new RuntimeException('Enable the curl extension.');
+    if (!extension_loaded('curl')) throw new RuntimeException('Включите расширение curl.');
     $count = bot_platform_dispatch_pending(100);
     fwrite(STDOUT, "Delivered webhook updates: {$count}\n");
 } catch (Throwable $e) {

@@ -10,7 +10,7 @@ try {
     if (!service_is_admin($user)) member((int)$file['chat_id'], (int)$user['id']);
     else admin_audit((int)$user['id'], 'file.download', (string)$file['message_id']);
     if (!preg_match('/^[a-f0-9]{48}\.bin$/D', $file['stored_name'])) fail(404, 'Файл не найден.');
-    $path = __DIR__ . '/files/' . $file['stored_name'];
+    $path = lchat_file_path($file['stored_name']);
     if (!is_file($path)) fail(404, 'Файл больше недоступен.');
     $play = ($_GET['play'] ?? '') === '1' && $file['voice_duration'] !== null;
     $video = ($_GET['video'] ?? '') === '1' && in_array($file['mime'], ['video/mp4', 'video/webm'], true);

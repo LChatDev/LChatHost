@@ -1,5 +1,10 @@
 # LChatHost
 
+<!-- live-sync-20261119 -->
+
+[Website update and deployment (English)](SYNC_EN.md) · [Обновление и размещение (русский)](SYNC_RU.md)
+
+
 **Windows и доступ к портам / Windows and port access:** [Инструкция для Windows](WINDOWS_HOST_RU.md) · [Windows guide](WINDOWS_HOST_EN.md) · [Программы и настройка](PORT_TOOLS_RU.md) · [Tools and setup](PORT_TOOLS_EN.md)
 
 

@@ -30,7 +30,7 @@ function bot_creator_state(int $uid, string $stage = '', string $draftName = '')
 }
 
 function bot_creator_help(): string {
-    return "Привет! Я @BotCreator. Создам бота LChat и выдам ему API-токен.\n\n/newbot — создать бота\n/mybots — список ваших ботов\n/token @имябота — заменить API-токен\n/setname @имябота Новое имя — изменить имя\n/cancel — отменить создание\n/help — эта подсказка\n\nДокументация: https://chat.lbs.su/docs.php";
+    return "Привет! Я @BotCreator. Создам бота LChat и выдам ему API-токен.\n\n/newbot — создать обычного бота\n/newaibot — создать бота с Kilo AI\n/mybots — список ваших ботов\n/token @имябота — заменить API-токен\n/setname @имябота Новое имя — изменить имя\n/cancel — отменить создание\n/help — эта подсказка\n\nAI-бота запускает и хостит его создатель. Документация: https://chat.lbs.su/docs.php";
 }
 
 function bot_creator_answer(int $uid, string $body): string {
@@ -44,6 +44,10 @@ function bot_creator_answer(int $uid, string $body): string {
     if (preg_match('~^/newbot(?:@botcreator)?$~iD', $body)) {
         bot_creator_state($uid, 'name');
         return 'Как назвать нового бота? Отправьте его отображаемое имя (2–60 символов).';
+    }
+    if (preg_match('~^/newaibot(?:@botcreator)?$~iD', $body)) {
+        bot_creator_state($uid, 'ai_name');
+        return "Создаём бота с Kilo Auto Free. Как его назвать?\n\nПосле создания я выдам токен и готовый Python-шаблон. Запускать бота нужно на своём ПК или сервере.";
     }
     if (preg_match('~^/mybots(?:@botcreator)?$~iD', $body)) {
         $bots = query('SELECT u.username, u.name FROM bot_accounts b JOIN users u ON u.id = b.bot_user_id WHERE b.owner_user_id = ? ORDER BY b.bot_user_id DESC', [$uid])->fetchAll();
@@ -72,14 +76,25 @@ function bot_creator_answer(int $uid, string $body): string {
         bot_creator_state($uid, 'username', $body);
         return 'Теперь придумайте логин, заканчивающийся на bot. Например, helperbot. Разрешены латинские буквы, цифры и _.';
     }
+    if (($state['stage'] ?? '') === 'ai_name') {
+        if (mb_strlen($body, 'UTF-8') < 2 || mb_strlen($body, 'UTF-8') > 60) return 'Имя должно содержать от 2 до 60 символов. Попробуйте ещё раз.';
+        bot_creator_state($uid, 'ai_username', $body);
+        return 'Придумайте логин AI-бота, заканчивающийся на bot. Например, smart_helper_bot.';
+    }
     if (($state['stage'] ?? '') === 'username') {
         try { $bot = bot_account_create($uid, $state['draft_name'], $body); }
         catch (DomainException $e) { return $e->getMessage() . ' Попробуйте другой логин или /cancel.'; }
         bot_creator_state($uid);
         return "Бот @{$bot['username']} создан. API-токен:\n{$bot['token']}\n\nСкопируйте его сейчас. Используйте только на своём сервере; документация: https://chat.lbs.su/docs.php";
     }
+    if (($state['stage'] ?? '') === 'ai_username') {
+        try { $bot = bot_account_create($uid, $state['draft_name'], $body); }
+        catch (DomainException $e) { return $e->getMessage() . ' Попробуйте другой логин или /cancel.'; }
+        bot_creator_state($uid);
+        return "✅ AI-бот @{$bot['username']} создан.\n\nAPI-токен:\n{$bot['token']}\n\nМодель: kilo-auto/free\nШаблон: https://chat.lbs.su/examples/kilo-ai-bot.py\n\nУстановите Python и requests, задайте переменную LCHAT_BOT_TOKEN и запустите шаблон на своём ПК или сервере. LChat не хостит пользовательских AI-ботов. Не публикуйте токен.";
+    }
     if ($command === '') return bot_creator_help();
-    return 'Неизвестная команда. Напишите /help или /newbot.';
+    return 'Неизвестная команда. Напишите /help, /newbot или /newaibot.';
 }
 
 function bot_creator_process(int $chatId, int $senderId, int $messageId, string $body): void {

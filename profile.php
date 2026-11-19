@@ -22,7 +22,7 @@ try {
     imagefill($image, 0, 0, imagecolorallocate($image, 255, 255, 255));
     $side = min($info[0], $info[1]);
     imagecopyresampled($image, $source, 0, 0, (int)(($info[0] - $side) / 2), (int)(($info[1] - $side) / 2), 400, 400, $side, $side);
-    $stored = bin2hex(random_bytes(24)) . '.png'; $saved = __DIR__ . '/files/' . $stored;
+    $stored = bin2hex(random_bytes(24)) . '.png'; $saved = lchat_file_path($stored, true);
     if (!imagepng($image, $saved, 7)) throw new RuntimeException('Cannot save avatar.');
     imagedestroy($source); imagedestroy($image); chmod($saved, 0640);
     $old = transaction(function() use ($user, $stored) {
@@ -33,7 +33,7 @@ try {
         return $old['stored_name'] ?? '';
     });
     $saved = null;
-    if (preg_match('/^[a-f0-9]{48}\.png$/D', $old) && is_file(__DIR__ . '/files/' . $old)) unlink(__DIR__ . '/files/' . $old);
+    if (preg_match('/^[a-f0-9]{48}\.png$/D', $old) && is_file(lchat_file_path($old))) unlink(lchat_file_path($old));
     result(['ok' => true]);
 } catch (Throwable $e) {
     if ($saved && is_file($saved)) unlink($saved);

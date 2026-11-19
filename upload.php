@@ -18,8 +18,8 @@ try {
     if ($existing) { if ((int)$existing['chat_id'] !== $chatId) fail(409, 'Идентификатор уже использован.'); bot_platform_publish_message((int)$existing['id']); result(['id' => $existing['id']]); }
     rate('upload:' . $user['id'], 30, 3600);
     $file = $_FILES['file'] ?? null;
-    if (!$file || !is_int($file['error'] ?? null) || $file['error'] !== UPLOAD_ERR_OK || !is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name'])) fail(422, 'Не удалось загрузить файл. Максимум — 8 МБ.');
-    $size = filesize($file['tmp_name']); if ($size === false || $size < 1 || $size > 8 * 1024 * 1024) fail(422, 'Файл должен быть от 1 байта до 8 МБ.');
+    if (!$file || !is_int($file['error'] ?? null) || $file['error'] !== UPLOAD_ERR_OK || !is_string($file['tmp_name'] ?? null) || !is_uploaded_file($file['tmp_name'])) fail(422, 'Не удалось загрузить файл. Максимум — 200 МБ.');
+    $size = filesize($file['tmp_name']); if ($size === false || $size < 1 || $size > 200 * 1024 * 1024) fail(422, 'Файл должен быть от 1 байта до 200 МБ.');
     if (!extension_loaded('fileinfo')) fail(503, 'На сервере нужно включить расширение fileinfo.');
     $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
     if ($voice && !in_array($mime, ['audio/ogg','application/ogg','audio/webm','video/webm','audio/mp4','audio/x-m4a','video/mp4','audio/mpeg','audio/wav','audio/x-wav'], true)) fail(422, 'Файл голосового сообщения должен быть аудио.');
@@ -29,7 +29,7 @@ try {
     $name = mb_substr($name ?: 'Файл', 0, 190);
     $body = field(['body' => $_POST['body'] ?? ''], 'body', 0, 4000);
     if ($voice) $body = '🎤 Голосовое сообщение'; elseif ($body === '') $body = '📎 ' . $name;
-    $dir = __DIR__ . '/files';
+    $dir = rtrim(lchat_file_path('', true), '/');
     if (!is_dir($dir) || !is_writable($dir)) fail(503, 'Папка files должна существовать и быть доступна PHP для записи.');
     $storedName = bin2hex(random_bytes(24)) . '.bin'; $stored = $dir . '/' . $storedName;
     if (!move_uploaded_file($file['tmp_name'], $stored)) throw new RuntimeException('Cannot save upload.');

@@ -4,6 +4,7 @@ define('LCHAT_INTERNAL', true);
 require __DIR__ . '/app.php';
 require __DIR__ . '/apis/invites.php';
 require __DIR__ . '/apis/sync.php';
+require __DIR__ . '/apis/registration-mail.php';
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 try {
@@ -65,6 +66,7 @@ try {
         rate('auth-ip:' . $ip, 30, 900);
         if ($action === 'register') {
             if (!(site_settings()['registration_open'])) fail(403, 'Регистрация закрыта.');
+            if (($data['accept_terms'] ?? null) !== '1') fail(422, 'Примите пользовательское соглашение и ознакомьтесь с политикой конфиденциальности. Если вы используете приложение, зарегистрируйтесь на сайте.');
             rate('register:' . $ip, 8, 3600);
             $name = field($data, 'name', 2, 60);
             $username = strtolower(field($data, 'username', 3, 32));
@@ -74,13 +76,15 @@ try {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) fail(422, 'Укажите корректный email.');
             $password = $data['password'] ?? '';
             if (!is_string($password) || mb_strlen($password, 'UTF-8') < 10 || strlen($password) > 72) fail(422, 'Пароль: минимум 10 символов, максимум 72 байта.');
-            try {
-                query('INSERT INTO users (username, email, name, password_hash, created_at, last_seen) VALUES (?, ?, ?, ?, ?, ?)', [$username, $email, $name, password_hash($password, PASSWORD_DEFAULT), stamp(), stamp()]);
-            } catch (PDOException $e) {
-                if (str_starts_with((string)$e->getCode(), '23')) fail(409, 'Этот логин или email уже занят.');
-                throw $e;
-            }
-            login_session((int)db()->lastInsertId());
+            if (one('SELECT id FROM users WHERE username = ? OR email = ?', [$username,$email])) fail(409, 'Этот логин или email уже занят.');
+            registration_table();
+            rate('register-email:' . hash('sha256', $email), 4, 3600);
+            $token=bin2hex(random_bytes(32));
+            query('DELETE FROM pending_registrations WHERE expires_at < ?', [stamp()]);
+            query('INSERT INTO pending_registrations (token_hash,username,email,name,password_hash,expires_at,created_at) VALUES (?,?,?,?,?,?,?)', [hash('sha256',$token),$username,$email,$name,password_hash($password,PASSWORD_DEFAULT),stamp(86400),stamp()]);
+            try { registration_send($email,$token); }
+            catch (Throwable $e) { query('DELETE FROM pending_registrations WHERE token_hash = ?', [hash('sha256',$token)]); error_log('LChat registration email: '.$e->getMessage()); fail(503, 'Не удалось отправить письмо. Повторите попытку позже.'); }
+            result(['ok'=>true,'verification_required'=>true]);
         } else {
             $login = strtolower(field($data, 'login', 3, 190));
             rate('auth-account:' . $login, 15, 900);
@@ -219,7 +223,7 @@ try {
         foreach ($chats as &$c) {
             $c['last_message'] = message_read($c['last_message'], true);
             if ($c['kind'] === 'direct') {
-                $p = one('SELECT u.id, u.name, u.username, u.last_seen FROM users u JOIN members m ON m.user_id = u.id WHERE m.chat_id = ? AND u.id <> ?', [$c['id'], $uid]);
+                $p = one('SELECT u.id, u.name, u.username, u.last_seen, COALESCE(w.verified,0) AS verified FROM users u JOIN members m ON m.user_id = u.id LEFT JOIN lchat_wallets w ON w.user_id=u.id WHERE m.chat_id = ? AND u.id <> ?', [$c['id'], $uid]);
                 $c['title'] = $p['name']; $c['peer'] = user_call_flags([$p])[0];
             }
         } unset($c);
@@ -306,13 +310,13 @@ try {
         result(['members' => $members]);
     }
     if ($action === 'chat.update') {
-        if (!in_array($chat['kind'], ['group', 'channel'], true) || $chat['role'] !== 'owner') fail(403, 'Only the owner can edit a group or channel.');
+        if (!in_array($chat['kind'], ['group', 'channel'], true) || $chat['role'] !== 'owner') fail(403, 'Только владелец может изменять группу или канал.');
         $title = field($data, 'title', 2, 80);
         query('UPDATE chats SET title = ? WHERE id = ?', [$title, $chatId]);
         result(['ok' => true, 'title' => $title]);
     }
     if ($action === 'channel.remove') {
-        if ($chat['kind'] !== 'channel' || $chat['role'] !== 'owner') fail(403, 'Only the owner can edit a group or channel.');
+        if ($chat['kind'] !== 'channel' || $chat['role'] !== 'owner') fail(403, 'Только владелец может изменять группу или канал.');
         $other = (int)($data['user_id'] ?? 0);
         if ($other < 1 || $other === $uid) fail(422, 'Invalid member.');
         query('DELETE FROM members WHERE chat_id = ? AND user_id = ?', [$chatId, $other]);
@@ -369,11 +373,11 @@ try {
             $admin = service_is_admin($u);
             $owner = in_array($chat['kind'], ['group','channel'], true) && $chat['role'] === 'owner';
             if ((int)$m['user_id'] !== $uid && !$owner && !$admin) fail(403, 'Можно удалять только свои сообщения.');
-            query('DELETE FROM messages WHERE id=? AND chat_id=?',[$id,$chatId]);
+            delete_message_row($id, $chatId);
             if ($admin) admin_audit($uid,'message.delete','chat:'.$chatId.' message:'.$id);
             return $m['stored_name'];
         });
-        if (is_string($stored) && preg_match('/^[a-f0-9]{48}\.bin$/D',$stored)) { $path=__DIR__.'/files/'.$stored;if(is_file($path)&&!unlink($path))error_log('LChat: cannot remove deleted attachment'); }
+        if (is_string($stored) && preg_match('/^[a-f0-9]{48}\.bin$/D',$stored)) { $path=lchat_file_path($stored);if(is_file($path)&&!unlink($path))error_log('LChat: cannot remove deleted attachment'); }
         result(['ok'=>true]);
     }
     if ($action === 'message.send') {
@@ -389,6 +393,7 @@ try {
         if ((int)$m['chat_id'] !== $chatId) fail(409, 'Идентификатор сообщения уже использован.');
         bot_platform_dismiss_keyboard($chatId, $uid);
         if ((int)$uid !== bot_creator_id()) bot_creator_process($chatId, $uid, (int)$m['id'], $body);
+        if ((int)$uid !== service_bot_id()) service_bot_process($chatId, $uid, (int)$m['id'], $body);
         bot_platform_publish_message((int)$m['id']);
         result(['id' => $m['id']]);
     }
