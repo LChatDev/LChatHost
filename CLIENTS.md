@@ -11,3 +11,7 @@ Android: нативный интерфейс, принятие соглашен�
 Checks / Проверки: Android package, update certificate, signatures, ZIP/DEX integrity and four ABIs; Windows permission/navigation tests and real portable EXE startup with live login screen. Physical phone installation, signed-in messaging and two-device/background calls have not been tested here. Установка на телефон и разговор между устройствами в этой среде не проверены.
 
 Android build notes: [source](https://github.com/LChatDev/LChat/blob/main/android/RELEASE_2.2.1.md). Windows: [English](https://github.com/LChatDev/LChat/blob/main/desktop/README.md), [Русский](https://github.com/LChatDev/LChat/blob/main/desktop/README_RU.md).
+
+## Android 2.2.2 call-engine candidate
+
+[Download / Скачать](https://github.com/LChatDev/LChat/releases/tag/android-v2.2.2). WebRTC 150.7871.08, standard addTrack negotiation and additional diagnostics. The reported Samsung SIGABRT is not yet device-verified as resolved. Обновление для проверки звонков; устранение сбоя на телефоне пока не подтверждено. Windows release unchanged.
