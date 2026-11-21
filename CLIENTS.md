@@ -15,3 +15,7 @@ Android build notes: [source](https://github.com/LChatDev/LChat/blob/main/androi
 ## Android 2.2.2 call-engine candidate
 
 [Download / Скачать](https://github.com/LChatDev/LChat/releases/tag/android-v2.2.2). WebRTC 150.7871.08, standard addTrack negotiation and additional diagnostics. The reported Samsung SIGABRT is not yet device-verified as resolved. Обновление для проверки звонков; устранение сбоя на телефоне пока не подтверждено. Windows release unchanged.
+
+## Android 2.2.3 pixel UI
+
+[Download / Скачать](https://github.com/LChatDev/LChat/releases/tag/android-v2.2.3). Pixel palette, chat wallpaper, app icon and sharper native radii. Пиксельная тема, обои чата, иконка и угловатые радиусы. Windows release unchanged.
