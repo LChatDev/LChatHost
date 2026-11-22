@@ -1,3 +1,11 @@
+## Android 3.0.0 — Native Calls v3
+
+[Download APK / Скачать APK](https://github.com/LChatDev/LChat/releases/tag/android-v3.0.0). Native call subsystem rebuilt. The Android 12 SIGABRT was reproduced and traced to missing ACCESS_NETWORK_STATE; permission, preflight and build guards are fixed. Verified real Android-to-Chromium RTP through TURN, microphone/speaker, background, screen off, ICE restart, repeat acceptance and immediate server cleanup. [Verification](https://github.com/LChatDev/LChat/blob/main/android/QA_3.0.0.md). Physical Samsung hardware was not available. Windows release is unchanged.
+
+Переработаны нативные звонки. Причина старого вылета установлена в эмуляторе Android 12 и устранена. Проверены аудиопоток через TURN, фон, выключенный экран, управление звуком, повторный звонок и освобождение состояния. Подпись сохранена; установите поверх старой версии. Физический Samsung не проверялся.
+
+---
+
 # LChat clients / Приложения LChat
 
 [Download APK and EXE / Скачать APK и EXE](https://github.com/LChatDev/LChat/releases/tag/clients-2026.11.20)
