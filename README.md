@@ -1,3 +1,6 @@
+> Current downloads: see [CLIENTS.md](CLIENTS.md). Previous application binaries have been withdrawn. The supplied APK uses a different signing key; old build/test instructions below describe retained source, not this binary.
+> Актуальный APK: см. CLIENTS.md. Старые сборки удалены; подпись APK отличается. Исторические инструкции ниже относятся к сохранённым исходникам.
+
 # LChatHost
 
 <!-- live-sync-20261119 -->
@@ -31,7 +34,7 @@ Backend for requests, sessions, messages, files and call signaling. Pages and as
 
 ## Панель для Windows и Linux / Windows and Linux panel
 
-[Скачать / Download](https://github.com/LChatDev/LChatHost/releases/tag/host-panel-v1.0.0) · [Русский](launcher/README_RU.md) · [English](launcher/README_EN.md)
+Скачать / Download (previous binary withdrawn / прежняя сборка удалена) · [Русский](launcher/README_RU.md) · [English](launcher/README_EN.md)
 
 
 [Codex skill / ИИ-скилл](.agents/skills/lchat-maintainer/SKILL.md). Open the repository in Codex and invoke `$lchat-maintainer`.

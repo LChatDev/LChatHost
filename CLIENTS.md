@@ -1,29 +1,13 @@
-## Android 3.0.0 — Native Calls v3
+# Current application / Актуальное приложение
 
-[Download APK / Скачать APK](https://github.com/LChatDev/LChat/releases/tag/android-v3.0.0). Native call subsystem rebuilt. The Android 12 SIGABRT was reproduced and traced to missing ACCESS_NETWORK_STATE; permission, preflight and build guards are fixed. Verified real Android-to-Chromium RTP through TURN, microphone/speaker, background, screen off, ICE restart, repeat acceptance and immediate server cleanup. [Verification](https://github.com/LChatDev/LChat/blob/main/android/QA_3.0.0.md). Physical Samsung hardware was not available. Windows release is unchanged.
+[Download APK / Скачать APK](https://github.com/LChatDev/LChat/releases/tag/android-2.1-code210) · [Website / Сайт](https://chat.lbs.su/application.php)
 
-Переработаны нативные звонки. Причина старого вылета установлена в эмуляторе Android 12 и устранена. Проверены аудиопоток через TURN, фон, выключенный экран, управление звуком, повторный звонок и освобождение состояния. Подпись сохранена; установите поверх старой версии. Физический Samsung не проверялся.
+The owner-supplied LChat.apk is the only currently published application. Version 2.1, version code 210, package su.lbs.lchat, Android 7.0+ (API 24), 496352 bytes. Published without rebuilding. All previous published Android, Windows, Linux and host/web-panel application releases were withdrawn at the owner's request. Repository source code and history are retained; matching source for this supplied APK has not been provided. Historical build/test reports do not describe this binary.
 
----
+The signing certificate differs from previous releases. Android cannot install it over those apps. Preserve any needed local data before uninstalling an old app. The APK signature and download hash were checked; calls and other runtime features in this binary have not been tested here.
 
-# LChat clients / Приложения LChat
+SHA-256: `0f995e3e153f9034c59e74bc115108c152714590bd02b4f9850521dd6a8d18d1`
 
-[Download APK and EXE / Скачать APK и EXE](https://github.com/LChatDev/LChat/releases/tag/clients-2026.11.20)
+Опубликован только APK, предоставленный владельцем. Файл не пересобирался. Все прежние опубликованные сборки приложений сняты с публикации; исходники и история репозиториев сохранены. Исходный код именно этого APK пока не предоставлен, старые отчёты тестирования к нему не относятся.
 
-Android 2.2.1: native Java client, Android 8.0+, four ABIs. Registration agreement acceptance and email-verification guidance, password reset link. Existing official signing certificate retained.
-
-Windows 1.0.0: portable Electron client, Windows 10/11 x64. Current web UI, persistent session, tray, permission prompts. Closing the window keeps the client running; choose Exit in the tray to stop it. No publisher signing certificate. Screen sharing is not implemented yet.
-
-Android: нативный интерфейс, принятие соглашения и подтверждение email. Windows: актуальный веб-интерфейс, сворачивание в трей, разрешения микрофона и камеры. Для полного выхода используйте меню в трее. EXE без подписи издателя.
-
-Checks / Проверки: Android package, update certificate, signatures, ZIP/DEX integrity and four ABIs; Windows permission/navigation tests and real portable EXE startup with live login screen. Physical phone installation, signed-in messaging and two-device/background calls have not been tested here. Установка на телефон и разговор между устройствами в этой среде не проверены.
-
-Android build notes: [source](https://github.com/LChatDev/LChat/blob/main/android/RELEASE_2.2.1.md). Windows: [English](https://github.com/LChatDev/LChat/blob/main/desktop/README.md), [Русский](https://github.com/LChatDev/LChat/blob/main/desktop/README_RU.md).
-
-## Android 2.2.2 call-engine candidate
-
-[Download / Скачать](https://github.com/LChatDev/LChat/releases/tag/android-v2.2.2). WebRTC 150.7871.08, standard addTrack negotiation and additional diagnostics. The reported Samsung SIGABRT is not yet device-verified as resolved. Обновление для проверки звонков; устранение сбоя на телефоне пока не подтверждено. Windows release unchanged.
-
-## Android 2.2.3 pixel UI
-
-[Download / Скачать](https://github.com/LChatDev/LChat/releases/tag/android-v2.2.3). Pixel palette, chat wallpaper, app icon and sharper native radii. Пиксельная тема, обои чата, иконка и угловатые радиусы. Windows release unchanged.
+Ключ подписи отличается: установка поверх старых сборок невозможна. Сохраните необходимые локальные данные перед удалением старого приложения. Проверены подпись и контрольная сумма; работа звонков в этом APK здесь не проверялась.
