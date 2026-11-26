@@ -57,7 +57,18 @@ function message_page(int $chatId, int $uid, array $data, ?array $calls = null):
     unset($row);
     foreach ($edits as &$edit) $edit['body'] = message_read($edit['body']);
     unset($edit);
-    return ['messages' => $rows, 'edited_messages' => $edits, 'edit_cursor' => $editCursor, 'reaction_state' => $reactionState, 'removed_ids' => $removed, 'members' => $people, 'active_call' => $active, 'bot_keyboard' => bot_platform_keyboard($chatId, $uid), 'has_more' => $hasMore];
+    if ($ids) {
+        $origins=query('SELECT message_id,post_id,channel_id FROM channel_comments WHERE message_id IN ('.implode(',',array_fill(0,count($ids),'?')).')',$ids)->fetchAll();
+        $originMap=[];foreach($origins as $origin)$originMap[(int)$origin['message_id']]=$origin;
+        foreach($rows as &$row)if(isset($originMap[(int)$row['id']])){$row['comment_post_id']=$originMap[(int)$row['id']]['post_id'];$row['comment_channel_id']=$originMap[(int)$row['id']]['channel_id'];}unset($row);
+    }
+    $commentState = [];
+    $discussion = discussion_link($chatId);
+    if ($discussion && $reactionIds) {
+        $counts = query('SELECT p.id,COUNT(t.message_id) AS n FROM messages p LEFT JOIN channel_comments t ON t.post_id=p.id AND t.channel_id=p.chat_id AND t.message_id IN (SELECT id FROM messages WHERE chat_id=?) WHERE p.chat_id=? AND p.id IN ('.implode(',',array_fill(0,count($reactionIds),'?')).') GROUP BY p.id',array_merge([$discussion['group_id'],$chatId],$reactionIds))->fetchAll();
+        foreach ($counts as $count) $commentState[] = ['message_id'=>(int)$count['id'],'count'=>(int)$count['n'],'group_id'=>(int)$discussion['group_id']];
+    } else foreach ($reactionIds as $id) $commentState[]=['message_id'=>$id,'count'=>0,'group_id'=>0];
+    return ['comment_state'=>$commentState, 'messages' => $rows, 'edited_messages' => $edits, 'edit_cursor' => $editCursor, 'reaction_state' => $reactionState, 'removed_ids' => $removed, 'members' => $people, 'active_call' => $active, 'bot_keyboard' => bot_platform_keyboard($chatId, $uid), 'has_more' => $hasMore];
 }
 function group_call_started(array $room, int $uid): void {
     if (!$room['chat_id'] || !$uid) return;

@@ -4,20 +4,22 @@ define('LCHAT_INTERNAL', true);
 require __DIR__ . '/app.php';
 require __DIR__ . '/apis/invites.php';
 require __DIR__ . '/apis/sync.php';
+require __DIR__ . '/apis/channel-discussions.php';
 require __DIR__ . '/apis/registration-mail.php';
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 try {
     $ctx = context();
     ensure_features();
+    discussion_schema();
     $action = $_GET['action'] ?? 'me';
     if ($ctx['uid'] && $action !== 'logout') require_user($ctx);
-    $read = ['me', 'chats', 'sync', 'messages', 'users', 'room.info', 'invite.info', 'contacts', 'mobile.events', 'channel.info', 'bot.callback.status', 'chat.info'];
+    $read = ['me', 'chats', 'sync', 'messages', 'users', 'room.info', 'invite.info', 'contacts', 'mobile.events', 'channel.info', 'bot.callback.status', 'chat.info', 'discussion.messages'];
     $data = $_GET;
     if (!in_array($action, $read, true)) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'Используйте POST.');
         if (!hash_equals($ctx['csrf'], $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) fail(403, 'Обновите страницу и повторите действие.');
-        $maxRequest = in_array($action, ['message.send', 'message.edit'], true) ? MESSAGE_REQUEST_MAX_BYTES : 65536;
+        $maxRequest = in_array($action, ['message.send', 'message.edit', 'discussion.send'], true) ? MESSAGE_REQUEST_MAX_BYTES : 65536;
         if ((int)($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxRequest) fail(413, 'Слишком большой запрос.');
         $raw = file_get_contents('php://input', false, null, 0, $maxRequest + 1);
         if ($raw === false || strlen($raw) > $maxRequest) fail(413, 'Слишком большой запрос.');
@@ -202,6 +204,7 @@ try {
         fail(404, 'Действие не найдено.');
     }
     $u = require_user($ctx); $uid = (int)$u['id'];
+    if (str_starts_with($action, 'discussion.')) discussion_api($action, $data, $uid);
     if ($action === 'channel.create') {
         rate('chat-create:'.$uid,40,600);$slug=channel_slug($data);$title=field($data,'title',2,80);
         try{$id=transaction(function()use($uid,$slug,$title){query('INSERT INTO chats (kind,title,owner_id,created_at) VALUES (?,?,?,?)',['channel',$title,$uid,stamp()]);$id=(int)db()->lastInsertId();query('INSERT INTO channel_details (chat_id,slug) VALUES (?,?)',[$id,$slug]);query('INSERT INTO members (chat_id,user_id,role,joined_at) VALUES (?,?,?,?)',[$id,$uid,'owner',stamp()]);return $id;});}catch(PDOException $e){if(str_starts_with((string)$e->getCode(),'23'))fail(409,'Этот адрес канала уже занят.');throw $e;}result(['id'=>$id,'slug'=>$slug]);
@@ -307,7 +310,7 @@ try {
     }
     if ($action === 'chat.info') {
         $members = query('SELECT u.id, u.name, u.username, m.role FROM users u JOIN members m ON m.user_id = u.id WHERE m.chat_id = ? ORDER BY u.name', [$chatId])->fetchAll();
-        result(['members' => $members]);
+        result(['members' => $members, 'discussion' => $chat['kind'] === 'channel' ? discussion_link($chatId) : null]);
     }
     if ($action === 'chat.update') {
         if (!in_array($chat['kind'], ['group', 'channel'], true) || $chat['role'] !== 'owner') fail(403, 'Только владелец может изменять группу или канал.');
@@ -391,6 +394,7 @@ try {
         catch (PDOException $e) { if (!str_starts_with((string)$e->getCode(), '23')) throw $e; }
         $m = one('SELECT id, chat_id FROM messages WHERE user_id = ? AND nonce = ?', [$uid, $nonce]);
         if ((int)$m['chat_id'] !== $chatId) fail(409, 'Идентификатор сообщения уже использован.');
+        if ($chat['kind'] === 'group') discussion_register_reply((int)$m['id'], $replyTo, $chatId);
         bot_platform_dismiss_keyboard($chatId, $uid);
         if ((int)$uid !== bot_creator_id()) bot_creator_process($chatId, $uid, (int)$m['id'], $body);
         if ((int)$uid !== service_bot_id()) service_bot_process($chatId, $uid, (int)$m['id'], $body);
