@@ -204,4 +204,6 @@ require_once __DIR__ . '/apis/bot_platform.php';
 require_once __DIR__ . '/apis/bot_files.php';
 require_once __DIR__ . '/apis/presence.php';
 
+require_once __DIR__ . '/apis/productivity.php';
+
 require_once __DIR__ . '/apis/site_settings.php';

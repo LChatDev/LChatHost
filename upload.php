@@ -10,6 +10,7 @@ try {
     if (!hash_equals($ctx['csrf'], $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) fail(403, 'Обновите страницу и повторите действие.');
     $chatId = (int)($_POST['chat_id'] ?? 0); $chat = member($chatId, (int)$user['id']);
     if ($chat['kind'] === 'channel' && $chat['role'] !== 'owner') fail(403, 'Публиковать в канале может только владелец.');
+    tools_assert_write($chatId,(int)$user['id']);
     $voice = ($_POST['voice'] ?? '') === '1'; $duration = (int)($_POST['duration'] ?? 0);
     if ($voice && ($duration < 1 || $duration > 180)) fail(422, 'Голосовое сообщение: от 1 до 180 секунд.');
     $nonce = field($_POST, 'nonce', 16, 64);

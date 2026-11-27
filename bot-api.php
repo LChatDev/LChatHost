@@ -200,6 +200,7 @@ try {
 
     $chatId = bot_number($data['chat_id'] ?? null, 'chat_id');
     $chat = bot_chat($chatId, $botId);
+    if($chat['kind']==='group' && in_array($method,['sendMessage','sendDocument','sendPhoto','sendAudio','sendVideo','sendVoice','sendAnimation','editMessageText','editMessageCaption'],true) && ($error=tools_write_error($chatId,$botId)))bot_error(403,$error);
     if ($method === 'getChat') bot_result(bot_chat_info($chat));
     if ($method === 'getChatMemberCount') {
         $count = one('SELECT COUNT(*) AS total FROM members WHERE chat_id = ?', [$chatId]);

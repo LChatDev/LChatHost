@@ -132,6 +132,7 @@ function ensure_features(): void {
     catch (Throwable $e) { error_log('LChat BotCreator provision: ' . get_class($e) . ' ' . $e->getMessage()); }
     try { service_bot_install(); }
     catch (Throwable $e) { error_log('LChat service bot provision: ' . get_class($e) . ' ' . $e->getMessage()); }
+    productivity_schema();
     $ready = true;
 }
 function channel_slug(array $data): string {

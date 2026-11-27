@@ -65,7 +65,8 @@ function discussion_api(string $action, array $data, int $uid): void {
         $ids=[]; $bytes=0;
         foreach ($meta as $item) { if (count($ids)>=30 || ($ids && $bytes+(int)$item['bytes']>MESSAGE_TEXT_MAX_BYTES)) break; $ids[]=(int)$item['id']; $bytes+=(int)$item['bytes']; }
         $rows = $ids ? query('SELECT m.id,m.user_id,m.body,m.created_at,m.edited_at,u.name,u.username FROM messages m JOIN users u ON u.id=m.user_id WHERE m.id IN ('.implode(',',array_fill(0,count($ids),'?')).') ORDER BY m.id',$ids)->fetchAll() : [];
-        $moderator = $chat['role'] === 'owner' || (one('SELECT role FROM members WHERE chat_id=? AND user_id=?',[$link['group_id'],$uid])['role'] ?? '') === 'owner';
+        $groupMember=one('SELECT c.*,m.role FROM chats c JOIN members m ON m.chat_id=c.id WHERE c.id=? AND m.user_id=?',[$link['group_id'],$uid]);
+        $moderator = ($groupMember && group_can($groupMember,$uid,'delete')) || $chat['role'] === 'owner' || (one('SELECT role FROM members WHERE chat_id=? AND user_id=?',[$link['group_id'],$uid])['role'] ?? '') === 'owner';
         foreach ($rows as &$row) { $row['body']=message_read($row['body']); $row['can_delete']=$moderator || (int)$row['user_id']===$uid; } unset($row);
         result(['messages'=>$rows,'discussion'=>$link,'has_more'=>count($ids)<count($meta),'total'=>(int)one('SELECT COUNT(*) AS n FROM channel_comments t JOIN messages m ON m.id=t.message_id WHERE t.post_id=? AND t.channel_id=? AND m.chat_id=?',[$post,$channel,$link['group_id']])['n']]);
     }
@@ -74,10 +75,12 @@ function discussion_api(string $action, array $data, int $uid): void {
         $m=one('SELECT m.user_id FROM channel_comments t JOIN messages m ON m.id=t.message_id WHERE t.message_id=? AND t.post_id=? AND t.channel_id=? AND m.chat_id=?',[$id,$post,$channel,$link['group_id']]);
         if (!$m) fail(404,'Комментарий не найден.');
         $groupOwner=(one('SELECT role FROM members WHERE chat_id=? AND user_id=?',[$link['group_id'],$uid])['role'] ?? '')==='owner';
-        if ((int)$m['user_id']!==$uid && $chat['role']!=='owner' && !$groupOwner) fail(403,'Недостаточно прав.');
-        delete_message_row($id,(int)$link['group_id']); result(['ok'=>true]);
+        $groupMember=one('SELECT c.*,m.role FROM chats c JOIN members m ON m.chat_id=c.id WHERE c.id=? AND m.user_id=?',[$link['group_id'],$uid]);
+        if ((int)$m['user_id']!==$uid && $chat['role']!=='owner' && !$groupOwner && !($groupMember && group_can($groupMember,$uid,'delete'))) fail(403,'Недостаточно прав.');
+        delete_message_row($id,(int)$link['group_id']); group_log((int)$link['group_id'],$uid,'message.delete',$id); result(['ok'=>true]);
     }
     if ($action === 'discussion.send') {
+        if(one('SELECT until_at FROM group_limits WHERE chat_id=? AND user_id=? AND until_at>?',[$link['group_id'],$uid,stamp()]))fail(403,'Вы временно ограничены в группе обсуждений.');
         rate('message:'.$uid,80,60);
         $body=message_text($data); $nonce=field($data,'nonce',16,64);
         if (!preg_match('/^[a-zA-Z0-9_-]+$/D',$nonce)) fail(422,'Некорректный идентификатор сообщения.');
